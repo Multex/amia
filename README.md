@@ -1,6 +1,6 @@
 # Amia
 
-<p align="center"><a href="https://dl.ruginit.xyz" title="Amia"><img src="images/amia.png" alt="Amia" width="50%"></a></p>
+<p align="center"><a href="https://dl.ruginit.xyz" title="Amia"><img src="images/amia.png" alt="Amia" width="30%"></a></p>
 
 Simple self-hosted video downloader with web UI using yt-dlp.
 
@@ -19,7 +19,7 @@ Simple self-hosted video downloader with web UI using yt-dlp.
 
 Amia is the online alias of [Mizuki Akiyama](https://www.sekaipedia.org/wiki/Akiyama_Mizuki) from Project Sekai's [Niigo group](https://www.sekaipedia.org/wiki/25-ji,_Nightcord_de.). Mizuki is a video editor, and just like how she work with videos, this tool help you download and manage videos from the internet!
 
-<p><a href="https://youtu.be/yzNM3-tq8vQ" title="Amia"><img src="images/mizu5.png" alt="Amia" width="90%"></a></p>
+<p><a href="https://youtu.be/yzNM3-tq8vQ" title="Amia"><img src="images/mizu5.png" alt="Amia"></a></p>
 
 ## Stack
 
