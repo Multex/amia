@@ -96,20 +96,28 @@ See `.env.example` for detailed comments on each variable.
 
 ### Language Support
 
-Change the interface language by setting the `LANGUAGE` environment variable:
+Change the interface language by setting the `LANGUAGE` environment variable.
 
+**In Docker**: Edit the `.env` file:
 ```bash
-# English (default)
-LANGUAGE=en
+# Create .env if it doesn't exist
+cp .env.example .env
 
-# Spanish
-LANGUAGE=es
+# Edit and change LANGUAGE value
+nano .env
+
+# Restart to apply changes
+docker compose restart
 ```
 
-**In Docker**: Add to `docker-compose.yml` under `environment`:
-```yaml
-environment:
-  - LANGUAGE=es
+**Local development**: Set in `.env` file or export directly:
+```bash
+# In .env file
+LANGUAGE=es
+
+# Or export temporarily
+export LANGUAGE=es
+pnpm dev
 ```
 
 ## API
@@ -248,14 +256,27 @@ The video exceeds `DOWNLOAD_MAX_FILE_SIZE_MB`. Increase the limit if needed.
 Restart the dev server: `Ctrl+C` and `pnpm dev` again.
 
 ### Downloads fail with "Unsupported URL"
-The URL might not be supported by yt-dlp, or you might need to update yt-dlp:
-```bash
-# Update yt-dlp
-pip install --upgrade yt-dlp
+The URL might not be supported by yt-dlp, or you might need to update yt-dlp.
 
-# Or in Docker, rebuild the image
+**Docker users:**
+```bash
+# Rebuild the Docker image to get the latest yt-dlp version
+docker compose down
 docker compose build --no-cache
+docker compose up -d
 ```
+
+**Local development:**
+```bash
+# Update yt-dlp to latest version
+curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+chmod a+rx /usr/local/bin/yt-dlp
+
+# Verify version
+yt-dlp --version
+```
+
+Note: Docker automatically downloads the latest yt-dlp version on each build.
 
 ## Development
 
