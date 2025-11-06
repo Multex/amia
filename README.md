@@ -85,7 +85,7 @@ No need for Node.js, pnpm, or yt-dlp installed locally.
 
 ## Configuration
 
-Rugivid is configured via environment variables. Create a `.env` file or set them in your environment.
+Amia is configured via environment variables. Create a `.env` file or set them in your environment.
 
 ### Available Variables
 
