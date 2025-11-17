@@ -353,10 +353,9 @@ const lang = appConfig.language;
       function updateQualityOptions() {
         if (formatSelect.value === 'mp3') {
           setAudioQualityOption();
-          qualitySelect.setAttribute('disabled', 'true');
+          // Don't disable to ensure value is submitted in FormData
         } else {
           setVideoQualityOptions();
-          qualitySelect.removeAttribute('disabled');
         }
       }
 
