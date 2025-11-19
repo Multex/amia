@@ -1,36 +1,48 @@
-FROM node:20-bookworm
+# Base stage: Install system dependencies
+FROM node:20-alpine AS base
+# yt-dlp requires python3 and ffmpeg
+RUN apk add --no-cache ffmpeg python3 curl ca-certificates
 
-# Install ffmpeg and dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install latest yt-dlp from official source
+# Install latest yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-ENV PNPM_HOME="/root/.local/share/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-
+# Build stage: Install node dependencies and build the app
+FROM base AS build
 WORKDIR /app
-
 COPY package.json pnpm-lock.yaml ./
-
 RUN pnpm install --frozen-lockfile
 
-COPY tsconfig.json astro.config.mjs ./
-COPY server ./server
-COPY src ./src
-COPY public ./public
-
+COPY . .
 RUN pnpm build
 RUN pnpm prune --prod
 
-RUN rm -rf temp && mkdir -p temp
+# Runtime stage: Copy only necessary files
+FROM base AS runtime
+WORKDIR /app
 
+# Copy built artifacts and dependencies from build stage
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server ./server
+COPY --from=build /app/public ./public
+COPY --from=build /app/package.json ./
+
+# Create temp directory for downloads
+RUN mkdir -p temp && chown node:node temp
+
+# Set environment variables
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
 EXPOSE 3000
+
+# Run as non-root user for security
+USER node
 
 CMD ["node", "./dist/server/entry.mjs"]
