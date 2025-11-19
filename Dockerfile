@@ -1,7 +1,8 @@
 # Base stage: Install system dependencies
 FROM node:20-alpine AS base
 # yt-dlp requires python3 and ffmpeg
-RUN apk add --no-cache ffmpeg python3 curl ca-certificates
+# su-exec is needed for the entrypoint script to switch users
+RUN apk add --no-cache ffmpeg python3 curl ca-certificates su-exec
 
 # Install latest yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
@@ -42,7 +43,6 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Run as non-root user for security
-USER node
-
+# Use entrypoint script to handle permissions and user switching
+ENTRYPOINT ["/app/server/entrypoint.sh"]
 CMD ["node", "./dist/server/entry.mjs"]
