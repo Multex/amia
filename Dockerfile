@@ -33,8 +33,14 @@ COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
 COPY --from=build /app/package.json ./
 
-# Create temp directory for downloads
-RUN mkdir -p temp && chown node:node temp
+# Create temp directory
+RUN mkdir -p temp
+
+# Fix permissions:
+# 1. Change ownership of /app to node user (so it can read/write if needed)
+# 2. Make entrypoint script executable
+RUN chown -R node:node /app \
+    && chmod +x /app/server/entrypoint.sh
 
 # Set environment variables
 ENV NODE_ENV=production
