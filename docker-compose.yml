@@ -12,3 +12,6 @@ services:
       - "127.0.0.1:8085:3000"
     volumes:
       - ./temp:/app/temp
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
