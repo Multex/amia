@@ -8,6 +8,7 @@ Simple self-hosted video downloader with web UI using yt-dlp.
 
 - **Modern UI**: "Midnight Glass" aesthetic with responsive design and smooth animations
 - **1000+ platforms supported** via yt-dlp (YouTube, TikTok, Twitter/X, Instagram, Vimeo, etc.)
+- **Playlist Support**: Download entire playlists as ZIP or select individual files
 - **Multi-language support**: English (default) and Spanish
 - **No database required**: Everything in memory and temporary filesystem
 - **Private downloads**: Unique UUID tokens per download, no shared history
@@ -102,6 +103,7 @@ See `.env.example` for detailed comments on each variable.
 | `DOWNLOAD_TEMP_DIR` | Temporary storage directory | `temp` | Any valid path |
 | `DOWNLOAD_RATE_LIMIT_MAX` | Max downloads per IP in time window | `5` | `1-∞` |
 | `DOWNLOAD_RATE_LIMIT_WINDOW_MINUTES` | Rate limit time window (minutes) | `60` | `1-∞` |
+| `DOWNLOAD_MAX_PLAYLIST_ITEMS` | Max items to download from a playlist | `5` | `1-∞` |
 
 ### Language Support
 
