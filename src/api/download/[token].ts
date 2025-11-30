@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import path from 'node:path';
-import { createDownloadStream, getDownload } from '../_downloadManager';
+import { createDownloadStream, createZipStream, getDownload } from '../_downloadManager';
 import { json, methodNotAllowed } from '../_utils';
 import { appConfig } from '../../../server/config.js';
 import { getTranslations } from '../../../server/i18n.js';
@@ -12,15 +12,18 @@ const MIME_MAP: Record<string, string> = {
   webm: 'video/webm',
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
-  opus: 'audio/ogg'
+  opus: 'audio/ogg',
+  zip: 'application/zip'
 };
 
 function sanitizeFilename(name: string) {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
 }
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, url }) => {
   const token = params.token;
+  const mode = url.searchParams.get('mode');
+  const indexParam = url.searchParams.get('index');
 
   if (!token) {
     return json({ error: 'Token requerido.' }, { status: 400 });
@@ -49,7 +52,13 @@ export const GET: APIRoute = async ({ params }) => {
     );
   }
 
-  const download = createDownloadStream(token);
+  let download;
+  if (mode === 'zip') {
+    download = await createZipStream(token);
+  } else {
+    const index = indexParam ? parseInt(indexParam, 10) : undefined;
+    download = createDownloadStream(token, index);
+  }
 
   if (!download) {
     return json({ error: t.apiNotFound }, { status: 404 });

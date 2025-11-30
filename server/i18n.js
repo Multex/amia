@@ -29,6 +29,8 @@ const translations = {
     statusReady: 'File ready!',
     statusProgress: 'Progress',
     downloadLinkText: 'Download file',
+    downloadZip: 'Download All (ZIP)',
+    playlistContent: 'Playlist Content',
 
     // Error messages
     errorGeneric: 'An error occurred while downloading.',
@@ -92,6 +94,8 @@ const translations = {
     statusReady: '¡Archivo listo!',
     statusProgress: 'Progreso',
     downloadLinkText: 'Descargar archivo',
+    downloadZip: 'Descargar Todo (ZIP)',
+    playlistContent: 'Contenido de la Playlist',
 
     // Error messages
     errorGeneric: 'Hubo un error al descargar.',

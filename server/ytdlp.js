@@ -7,6 +7,7 @@ import { appConfig } from './config.js';
  * @param {object} options
  * @param {string} options.url
  * @param {string[]} options.args
+ * @param {number} [options.maxFileSizeMb]
  * @returns {{ child: import('node:child_process').ChildProcessWithoutNullStreams, events: EventEmitter }}
  */
 export function runYtDlp({ url, args, maxFileSizeMb = appConfig.download.maxFileSizeMb }) {

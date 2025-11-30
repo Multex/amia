@@ -368,6 +368,84 @@ const lang = appConfig.language;
         border-bottom-color: var(--accent-primary);
       }
 
+      .playlist-container {
+        margin-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+        display: none;
+      }
+
+      .playlist-container.active {
+        display: block;
+      }
+
+      .playlist-container h4 {
+        margin: 0 0 1rem 0;
+        font-size: 0.95rem;
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      .playlist-files {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.75rem;
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+      }
+
+      .playlist-files::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .playlist-files::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 3px;
+      }
+
+      .playlist-files::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+      }
+
+      .file-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        font-size: 0.9rem;
+      }
+
+      .file-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-right: 1rem;
+        flex: 1;
+      }
+
+      .file-download-btn {
+        padding: 0.4rem 0.8rem;
+        background: rgba(56, 189, 248, 0.15);
+        color: #7dd3fc;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: all 0.2s;
+      }
+
+      .file-download-btn:hover {
+        background: rgba(56, 189, 248, 0.25);
+      }
+
       @media (max-width: 600px) {
         main {
           padding: 1.5rem;
@@ -388,7 +466,7 @@ const lang = appConfig.language;
         <p class="subtitle">{t.pageSubtitle}</p>
       </div>
 
-      <form id="download-form" autocomplete="off">
+      <form id="download-form" method="POST" autocomplete="off">
         <div class="form-group">
           <label for="url">{t.urlLabel}</label>
           <div class="input-wrapper">
@@ -443,6 +521,11 @@ const lang = appConfig.language;
           </svg>
           {t.downloadLinkText}
         </a>
+        
+        <div id="playlist-container" class="playlist-container">
+          <h4>{t.playlistContent ?? 'Playlist Content'}</h4>
+          <ul id="playlist-files" class="playlist-files"></ul>
+        </div>
       </section>
 
       <div class="platforms">
@@ -542,6 +625,7 @@ const lang = appConfig.language;
         progressText.textContent = '';
         downloadLink.hidden = true;
         downloadLink.removeAttribute('href');
+        document.getElementById('playlist-container')?.classList.remove('active');
       }
 
       async function pollStatus(token) {
@@ -557,7 +641,49 @@ const lang = appConfig.language;
           if (data.status === 'completed') {
             statusMessage.textContent = translations.statusReady;
             statusMessage.className = 'success';
-            downloadLink.href = `/api/download/${token}`;
+            
+            if (data.isPlaylist) {
+              downloadLink.href = `/api/download/${token}?mode=zip`;
+              downloadLink.innerHTML = `
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ${translations.downloadZip ?? 'Download All (ZIP)'}
+              `;
+              
+              const playlistContainer = document.getElementById('playlist-container');
+              const playlistFiles = document.getElementById('playlist-files');
+              
+              if (playlistContainer && playlistFiles && data.files) {
+                playlistFiles.innerHTML = '';
+                data.files.forEach((file, index) => {
+                  const li = document.createElement('li');
+                  li.className = 'file-item';
+                  
+                  const sizeStr = file.size 
+                    ? (file.size / 1024 / 1024).toFixed(1) + ' MB' 
+                    : '';
+                    
+                  li.innerHTML = `
+                    <span class="file-name" title="${file.name}">${file.name}</span>
+                    <a href="/api/download/${token}?index=${index}" class="file-download-btn" target="_blank">
+                      Download ${sizeStr ? `(${sizeStr})` : ''}
+                    </a>
+                  `;
+                  playlistFiles.appendChild(li);
+                });
+                playlistContainer.classList.add('active');
+              }
+            } else {
+              downloadLink.href = `/api/download/${token}`;
+              downloadLink.innerHTML = `
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                ${translations.downloadLinkText}
+              `;
+            }
+            
             downloadLink.hidden = false;
             submitBtn.removeAttribute('disabled');
             if (pollTimer) {
@@ -568,6 +694,7 @@ const lang = appConfig.language;
             statusMessage.textContent = data.error ?? translations.errorGeneric;
             statusMessage.className = 'error';
             downloadLink.hidden = true;
+            document.getElementById('playlist-container')?.classList.remove('active');
             progressBar.value = 0;
             submitBtn.removeAttribute('disabled');
             if (pollTimer) {

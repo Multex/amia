@@ -42,6 +42,7 @@ const lang = supportedLanguages.includes(language) ? language : 'en';
  * @property {number} cleanupIntervalMs
  * @property {number} maxFileSizeMb
  * @property {number} maxDownloadsPerFile
+ * @property {number} maxPlaylistItems
  * @property {number} ttlMinutes
  * @property {number} cleanupMinutes
  *
@@ -64,6 +65,7 @@ export const appConfig = Object.freeze({
     cleanupIntervalMs: cleanupMinutes * 60 * 1000,
     maxFileSizeMb,
     maxDownloadsPerFile,
+    maxPlaylistItems: envInt('DOWNLOAD_MAX_PLAYLIST_ITEMS', 5, { min: 1 }),
     ttlMinutes,
     cleanupMinutes
   },

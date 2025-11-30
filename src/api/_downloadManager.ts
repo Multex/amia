@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { rm, stat, readdir, mkdir } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import path from 'node:path';
+import archiver from 'archiver';
 import { runYtDlp } from '../../server/ytdlp.js';
 import { appConfig } from '../../server/config.js';
 
@@ -12,6 +13,13 @@ const TTL_MS = appConfig.download.ttlMs;
 type DownloadStatus = 'pending' | 'in_progress' | 'completed' | 'error';
 type FormatOption = 'mp4' | 'webm' | 'mp3';
 type QualityOption = 'best' | '1080p' | '720p' | '480p' | 'audio';
+
+interface DownloadFile {
+  filename: string;
+  downloadName: string;
+  filePath: string;
+  fileSize: number;
+}
 
 interface DownloadRecord {
   token: string;
@@ -24,10 +32,10 @@ interface DownloadRecord {
   updatedAt: number;
   expiresAt: number;
   downloadCount: number;
-  filePath?: string;
-  filename?: string;
-  downloadName?: string;
-  fileSize?: number;
+  files: DownloadFile[];
+  isPlaylist: boolean;
+  totalFiles?: number;
+  currentFileIndex?: number;
   error?: string;
   processClosed?: boolean;
 }
@@ -41,12 +49,19 @@ async function ensureTempDir() {
 function buildArgs(format: FormatOption, quality: QualityOption, token: string) {
   const safeQuality =
     quality === 'audio' && format !== 'mp3' ? 'best' : quality;
+
+  // Use %(autonumber)s to prevent filename collisions in playlists
+  const outputTemplate = path.join(TEMP_DIR, `${token}-%(autonumber)s-%(title)s.%(ext)s`);
+
   const args: string[] = [
     '--no-call-home',
     '--no-part',
+    '--yes-playlist',
     '--restrict-filenames',
+    '--playlist-end',
+    appConfig.download.maxPlaylistItems.toString(),
     '-o',
-    path.join(TEMP_DIR, `${token}-%(title)s.%(ext)s`)
+    outputTemplate
   ];
 
   if (format === 'mp3') {
@@ -91,33 +106,50 @@ function buildArgs(format: FormatOption, quality: QualityOption, token: string) 
   return args;
 }
 
-async function resolveFile(token: string) {
+async function resolveFiles(token: string): Promise<DownloadFile[]> {
   const entries = await readdir(TEMP_DIR);
-  const match = entries.find((file) => file.startsWith(`${token}-`));
-  if (!match) {
-    return undefined;
+  // Match files starting with token- but NOT ending in .zip (to avoid self-inclusion if we zip later)
+  const matches = entries.filter((file) => file.startsWith(`${token}-`) && !file.endsWith('.zip'));
+
+  const files: DownloadFile[] = [];
+  for (const match of matches) {
+    const fullPath = path.join(TEMP_DIR, match);
+    try {
+      const info = await stat(fullPath);
+      files.push({
+        filePath: fullPath,
+        filename: match,
+        downloadName: match.replace(`${token}-`, '').replace(/^\d+-/, ''), // Remove token and autonumber
+        fileSize: info.size
+      });
+    } catch {
+      // ignore missing files
+    }
   }
-  const fullPath = path.join(TEMP_DIR, match);
-  const info = await stat(fullPath);
-  return {
-    filePath: fullPath,
-    filename: match,
-    downloadName: match.replace(`${token}-`, ''),
-    fileSize: info.size
-  };
+
+  // Sort by filename (which includes autonumber) to keep playlist order
+  return files.sort((a, b) => a.filename.localeCompare(b.filename));
 }
 
 async function cleanupRecord(token: string) {
   const record = downloads.get(token);
   if (!record) return;
 
-  if (record.filePath) {
+  // Delete all known files
+  for (const file of record.files) {
     try {
-      await rm(record.filePath, { force: true });
-    } catch {
-      // ignore
-    }
+      await rm(file.filePath, { force: true });
+    } catch { /* ignore */ }
   }
+
+  // Also try to delete any other files starting with token (zip, or partials)
+  try {
+    const entries = await readdir(TEMP_DIR);
+    const related = entries.filter(f => f.startsWith(`${token}-`));
+    for (const file of related) {
+      await rm(path.join(TEMP_DIR, file), { force: true });
+    }
+  } catch { /* ignore */ }
 
   downloads.delete(token);
 }
@@ -150,7 +182,9 @@ export async function startDownload(url: string, format: FormatOption, quality: 
     createdAt,
     updatedAt: createdAt,
     expiresAt: createdAt + TTL_MS,
-    downloadCount: 0
+    downloadCount: 0,
+    files: [],
+    isPlaylist: false
   };
 
   downloads.set(token, record);
@@ -165,36 +199,55 @@ export async function startDownload(url: string, format: FormatOption, quality: 
   events.on('progress', (value) => {
     const current = downloads.get(token);
     if (!current) return;
-    current.progress = Math.max(current.progress, Math.min(100, value));
+
+    // If we are in a playlist, this progress is for the CURRENT file.
+    // We could try to average it, but for now let's just show it.
+    // Ideally we'd map (fileIndex * 100 + value) / totalFiles
+    if (current.totalFiles && current.currentFileIndex !== undefined) {
+      const base = (current.currentFileIndex - 1) / current.totalFiles * 100;
+      const added = value / current.totalFiles;
+      current.progress = Math.min(99, base + added);
+    } else {
+      current.progress = Math.max(current.progress, Math.min(100, value));
+    }
     current.updatedAt = Date.now();
   });
 
   const handleLine = (line: string) => {
+    // console.log(`[Debug] yt-dlp output: ${line}`); // Uncomment for verbose logs
     const current = downloads.get(token);
     if (!current) return;
 
-    if (line.includes('Destination:')) {
-      const destination = line.split('Destination:')[1]?.trim();
-      if (destination) {
-        const normalized = path.isAbsolute(destination)
-          ? destination
-          : path.resolve(destination);
-        current.filePath = normalized;
-        current.filename = path.basename(normalized);
-        current.downloadName = current.filename.replace(`${token}-`, '');
-        current.updatedAt = Date.now();
-      }
+    // Detect playlist
+    if (line.includes('Downloading playlist')) {
+      current.isPlaylist = true;
     }
 
+    // Detect "Downloading video 1 of 5"
+    const playlistProgress = line.match(/Downloading video (\d+) of (\d+)/);
+    if (playlistProgress) {
+      current.currentFileIndex = parseInt(playlistProgress[1], 10);
+      current.totalFiles = parseInt(playlistProgress[2], 10);
+      current.isPlaylist = true;
+    }
+
+    // Capture filenames
+    let destination: string | undefined;
+    if (line.includes('Destination:')) {
+      destination = line.split('Destination:')[1]?.trim();
+    }
     const mergeMatch = line.match(/Merging formats into "(.*)"/);
     if (mergeMatch && mergeMatch[1]) {
-      const destination = mergeMatch[1];
+      destination = mergeMatch[1];
+    }
+
+    if (destination) {
       const normalized = path.isAbsolute(destination)
         ? destination
         : path.resolve(destination);
-      current.filePath = normalized;
-      current.filename = path.basename(normalized);
-      current.downloadName = current.filename.replace(`${token}-`, '');
+
+      // We don't add to record.files yet, we do it at the end to be sure
+      // But we could track the "current" file here if needed
       current.updatedAt = Date.now();
     }
 
@@ -224,49 +277,35 @@ export async function startDownload(url: string, format: FormatOption, quality: 
 
     if (code !== 0) {
       current.status = 'error';
-      current.error =
-        current.error ??
-        `yt-dlp exited with code ${code ?? 'unknown'}`;
+      current.error = current.error ?? `yt-dlp exited with code ${code ?? 'unknown'}`;
       current.expiresAt = Date.now();
       return;
     }
 
     try {
-      const info =
-        current.filePath && current.filename && current.downloadName
-          ? {
-              filePath: current.filePath,
-              filename: current.filename,
-              downloadName: current.downloadName,
-              fileSize: current.fileSize
-            }
-          : await resolveFile(token);
+      // Resolve all downloaded files
+      const files = await resolveFiles(token);
 
-      if (!info) {
+      if (files.length === 0) {
         current.status = 'error';
-        current.error = 'Archivo no disponible tras la descarga.';
+        current.error = 'No se encontraron archivos descargados.';
         current.expiresAt = Date.now();
         return;
       }
 
-      current.filePath = info.filePath;
-      current.filename = info.filename;
-      current.downloadName =
-        info.downloadName ?? info.filename.replace(`${token}-`, '');
-      if (!info.fileSize) {
-        const stats = await stat(info.filePath);
-        current.fileSize = stats.size;
-      } else {
-        current.fileSize = info.fileSize;
-      }
-
+      current.files = files;
       current.status = 'completed';
       current.progress = 100;
       current.expiresAt = Date.now() + TTL_MS;
+
+      // If multiple files were downloaded but we didn't detect playlist flag (rare), set it
+      if (files.length > 1) {
+        current.isPlaylist = true;
+      }
+
     } catch (error) {
       current.status = 'error';
-      current.error =
-        error instanceof Error ? error.message : 'Fallo al preparar el archivo.';
+      current.error = error instanceof Error ? error.message : 'Fallo al preparar los archivos.';
       current.expiresAt = Date.now();
     }
   });
@@ -288,8 +327,11 @@ export function getDownloadStatus(token: string) {
     progress: Math.round(record.progress),
     error: record.error,
     expiresAt: record.expiresAt,
-    downloadName: record.downloadName,
-    fileSize: record.fileSize
+    isPlaylist: record.isPlaylist,
+    files: record.files.map(f => ({
+      name: f.downloadName,
+      size: f.fileSize
+    }))
   };
 }
 
@@ -302,39 +344,103 @@ export async function incrementDownloadCount(token: string) {
 
   const maxDownloads = appConfig.download.maxDownloadsPerFile;
 
-  // If maxDownloadsPerFile is 0, unlimited downloads (only TTL cleanup applies)
-  if (maxDownloads === 0) {
-    return;
-  }
+  if (maxDownloads === 0) return;
 
-  // If download limit reached, cleanup immediately
   if (record.downloadCount >= maxDownloads) {
     record.expiresAt = Date.now();
     await cleanupRecord(token);
   }
 }
 
-export function createDownloadStream(token: string) {
+export async function createZipStream(token: string) {
   const record = downloads.get(token);
-  if (!record || record.status !== 'completed' || !record.filePath) {
+  if (!record || record.status !== 'completed' || record.files.length === 0) {
+    return undefined;
+  }
+
+  const zipPath = path.join(TEMP_DIR, `${token}-archive.zip`);
+
+  // Check if zip already exists
+  try {
+    await stat(zipPath);
+    // If exists, return stream
+    const stream = createReadStream(zipPath);
+    stream.on('close', () => incrementDownloadCount(token));
+    return {
+      stream,
+      filename: `playlist-${token.slice(0, 8)}.zip`,
+      size: (await stat(zipPath)).size
+    };
+  } catch {
+    // Zip doesn't exist, create it
+  }
+
+  // Create ZIP
+  return new Promise<{ stream: any, filename: string, size: number } | undefined>((resolve, reject) => {
+    const output = createWriteStream(zipPath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Sets the compression level.
+    });
+
+    output.on('close', async () => {
+      try {
+        const size = (await stat(zipPath)).size;
+        const readStream = createReadStream(zipPath);
+        readStream.on('close', () => incrementDownloadCount(token));
+        resolve({
+          stream: readStream,
+          filename: `playlist-${token.slice(0, 8)}.zip`,
+          size
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    archive.on('error', (err) => reject(err));
+
+    archive.pipe(output);
+
+    for (const file of record.files) {
+      archive.file(file.filePath, { name: file.downloadName });
+    }
+
+    archive.finalize();
+  });
+}
+
+export function createDownloadStream(token: string, fileIndex?: number) {
+  const record = downloads.get(token);
+  if (!record || record.status !== 'completed' || record.files.length === 0) {
     return undefined;
   }
 
   const maxDownloads = appConfig.download.maxDownloadsPerFile;
-
-  // Check if download limit already reached (0 = unlimited)
   if (maxDownloads > 0 && record.downloadCount >= maxDownloads) {
     return undefined;
   }
 
-  const stream = createReadStream(record.filePath);
-  stream.on('close', () => {
-    incrementDownloadCount(token);
-  });
+  // If index provided, download specific file
+  if (fileIndex !== undefined && fileIndex >= 0 && fileIndex < record.files.length) {
+    const file = record.files[fileIndex];
+    const stream = createReadStream(file.filePath);
+    // Increment count for individual files too, as per user request
+    stream.on('close', () => incrementDownloadCount(token));
 
+    return {
+      stream,
+      filename: file.downloadName,
+      size: file.fileSize
+    };
+  }
+
+  // Default: Return first file (backward compatibility)
+  const file = record.files[0];
+  const stream = createReadStream(file.filePath);
+  stream.on('close', () => incrementDownloadCount(token));
   return {
     stream,
-    filename: record.downloadName ?? record.filename ?? `${token}.bin`,
-    size: record.fileSize
+    filename: file.downloadName,
+    size: file.fileSize
   };
 }
