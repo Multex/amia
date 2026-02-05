@@ -8,7 +8,7 @@ Simple self-hosted video downloader with web UI using yt-dlp.
 
 - **Modern UI**: "Midnight Glass" aesthetic with responsive design and smooth animations
 - **1000+ platforms supported** via yt-dlp (YouTube, TikTok, Twitter/X, Instagram, Vimeo, etc.)
-- **Playlist Support**: Download entire playlists as ZIP or select individual files
+- **Playlist Support**: Download entire playlists as ZIP (optional, opt-in)
 - **Multi-language support**: English (default) and Spanish
 - **No database required**: Everything in memory and temporary filesystem
 - **Private downloads**: Unique UUID tokens per download, no shared history
@@ -25,8 +25,8 @@ Amia is the online alias of [Mizuki Akiyama](https://www.sekaipedia.org/wiki/Aki
 
 ## Stack
 
-- **Frontend**: Astro (SSR with Node adapter)
-- **Backend**: Node.js + Astro API Routes
+- **Frontend**: Vanilla HTML/CSS/JS (Midnight Glass aesthetic)
+- **Backend**: Express.js + TypeScript (tsx)
 - **Downloader**: yt-dlp + ffmpeg
 - **Deployment**: Docker + docker-compose
 
@@ -51,14 +51,13 @@ cp .env.example .env
 
 # Start dev server
 pnpm dev
-# Opens at http://localhost:4321
+# Opens at http://localhost:3000
 ```
 
 ### Production (without Docker)
 
 ```bash
 pnpm install
-pnpm build
 pnpm start
 # Server runs on port 3000
 ```
@@ -133,8 +132,7 @@ pnpm dev
 
 ## API
 
-Base URL (development): `http://localhost:4321`
-Base URL (production): `http://localhost:3000`
+Base URL: `http://localhost:3000`
 
 ### Endpoints
 
@@ -146,12 +144,14 @@ Start a new download.
 {
   "url": "https://www.youtube.com/watch?v=...",
   "format": "mp4",
-  "quality": "best"
+  "quality": "best",
+  "playlist": false
 }
 ```
 
 - `format`: `mp4`, `webm`, or `mp3`
 - `quality`: `best`, `1080p`, `720p`, `480p`, or `audio`
+- `playlist`: `true` to download entire playlist, `false` (default) for single video only
 
 **Response (202 Accepted)**:
 ```json
@@ -206,22 +206,20 @@ curl -L -o video.mp4 http://localhost:3000/api/download/$TOKEN
 
 ```
 .
-├── src/
-│   ├── pages/
-│   │   ├── index.astro              # Main UI
-│   │   └── api/
-│   │       ├── download.ts          # POST /api/download
-│   │       ├── download/[token].ts  # GET /api/download/:token
-│   │       └── status/[token].ts    # GET /api/status/:token
-│   └── api/
-│       ├── _downloadManager.ts      # Download queue and cleanup
-│       ├── _rateLimiter.ts          # Rate limiting logic
-│       └── _utils.ts                # Utilities
 ├── server/
-│   ├── ytdlp.js                     # yt-dlp wrapper
-│   ├── config.js                    # Configuration loader
-│   └── i18n.js                      # Translations
-├── temp/                             # Temporary downloads (gitignored)
+│   ├── index.ts           # Express server and routes
+│   ├── downloadManager.ts # Download queue and cleanup
+│   ├── rateLimiter.ts     # Rate limiting logic
+│   ├── utils.ts           # Utilities
+│   ├── ytdlp.ts           # yt-dlp wrapper
+│   ├── config.ts          # Configuration loader
+│   └── i18n.ts            # Translations
+├── public/
+│   ├── index.html         # Main UI
+│   ├── style.css          # Styles (Midnight Glass)
+│   ├── app.js             # Frontend logic
+│   └── images/            # Static assets
+├── temp/                  # Temporary downloads (gitignored)
 ├── Dockerfile
 ├── docker-compose.yml
 └── package.json
@@ -233,7 +231,7 @@ curl -L -o video.mp4 http://localhost:3000/api/download/$TOKEN
 - Includes yt-dlp and ffmpeg
 - Exposed port: 3000 (mapped to 127.0.0.1:8085 in compose)
 - Volume: `./temp:/app/temp` for persistence between restarts
-- **Optimized**: Uses multi-stage builds to keep image size small (~100MB)
+- **Optimized**: Lightweight Alpine-based image
 
 ### Behind a Reverse Proxy
 
