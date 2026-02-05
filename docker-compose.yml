@@ -1,17 +1,18 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: production
+    env_file: .env
     ports:
-      - "127.0.0.1:8085:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./temp:/app/temp
+      # Bind mount the code so changes apply without rebuild!
+      - ./server:/app/server
+      - ./public:/app/public
+      - ./package.json:/app/package.json
+    environment:
+      NODE_ENV: production
     dns:
       - 8.8.8.8
       - 1.1.1.1
