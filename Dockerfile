@@ -12,35 +12,26 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-# Build stage: Install node dependencies and build the app
-FROM base AS build
+# Production stage
+FROM base AS production
 WORKDIR /app
+
+# Copy package files
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY . .
-RUN pnpm build
-RUN pnpm prune --prod
-
-# Runtime stage: Copy only necessary files
-FROM base AS runtime
-WORKDIR /app
-
-# Copy built artifacts and dependencies from build stage
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/server ./server
-COPY --from=build /app/public ./public
-COPY --from=build /app/package.json ./
+# Copy application files
+COPY server ./server
+COPY public ./public
 
 # Create temp directory
 RUN mkdir -p temp
 
-# Fix permissions:
-# 1. Change ownership of /app to node user (so it can read/write if needed)
-# 2. Make entrypoint script executable
-RUN chown -R node:node /app \
-    && chmod +x /app/server/entrypoint.sh
+# Create entrypoint script
+RUN echo '#!/bin/sh\nset -e\n\n# Fix permissions for temp directory\nif [ -d "/app/temp" ]; then\n  chown -R node:node /app/temp\nfi\n\n# Execute the command as node user\nexec su-exec node "$@"' > /app/server/entrypoint.sh && chmod +x /app/server/entrypoint.sh
+
+# Fix permissions
+RUN chown -R node:node /app
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -51,4 +42,4 @@ EXPOSE 3000
 
 # Use entrypoint script to handle permissions and user switching
 ENTRYPOINT ["/app/server/entrypoint.sh"]
-CMD ["node", "./dist/server/entry.mjs"]
+CMD ["pnpm", "start"]

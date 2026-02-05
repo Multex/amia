@@ -1,4 +1,4 @@
-import { appConfig } from '../../server/config.js';
+import { appConfig } from './config.js';
 
 const MAX_REQUESTS = appConfig.rateLimit.maxRequests;
 const WINDOW_MS = appConfig.rateLimit.windowMs;

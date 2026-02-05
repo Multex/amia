@@ -1,4 +1,71 @@
-const translations = {
+interface Translations {
+  // Page metadata
+  pageTitle: string;
+  pageSubtitle: string;
+
+  // Form labels
+  urlLabel: string;
+  urlPlaceholder: string;
+  formatLabel: string;
+  qualityLabel: string;
+  playlistLabel: string;
+  downloadButton: string;
+
+  // Format options
+  formatMp4: string;
+  formatWebm: string;
+  formatMp3: string;
+
+  // Quality options
+  qualityBest: string;
+  quality1080p: string;
+  quality720p: string;
+  quality480p: string;
+  qualityAudio: string;
+
+  // Status messages
+  statusInitiating: string;
+  statusDownloading: string;
+  statusReady: string;
+  statusProgress: string;
+  downloadLinkText: string;
+  downloadZip: string;
+  playlistContent: string;
+
+  // Error messages
+  errorGeneric: string;
+  errorStateUnavailable: string;
+  errorCouldNotStart: string;
+
+  // Platform section
+  platformsTitle: string;
+  platformsMore: string;
+
+  // Notes
+  noteRateLimit: (maxRequests: number, window: string) => string;
+  noteCleanup: (ttl: string) => string;
+  noteMaxSize: (size: number) => string;
+  notePrivacy: string;
+
+  // Time formatting
+  timeHour: string;
+  timeHours: string;
+  timeMinute: string;
+  timeMinutes: string;
+
+  // API error messages
+  apiInvalidData: string;
+  apiInvalidDataDetails: string;
+  apiInvalidUrl: string;
+  apiRateLimitExceeded: (maxRequests: number, window: string) => string;
+  apiCouldNotStart: string;
+  apiMethodNotAllowed: string;
+  apiNotFound: string;
+  apiFileNotReady: string;
+  apiInternalError: string;
+}
+
+const translations: Record<'en' | 'es', Translations> = {
   en: {
     // Page metadata
     pageTitle: 'Amia - Video downloader',
@@ -9,6 +76,7 @@ const translations = {
     urlPlaceholder: 'https://... (YouTube, TikTok, Twitter, Instagram, etc.)',
     formatLabel: 'Format',
     qualityLabel: 'Quality',
+    playlistLabel: 'Download entire playlist',
     downloadButton: 'Download',
 
     // Format options
@@ -74,6 +142,7 @@ const translations = {
     urlPlaceholder: 'https://... (YouTube, TikTok, Twitter, Instagram, etc.)',
     formatLabel: 'Formato',
     qualityLabel: 'Calidad',
+    playlistLabel: 'Descargar playlist completa',
     downloadButton: 'Descargar',
 
     // Format options
@@ -131,11 +200,8 @@ const translations = {
   }
 };
 
-/**
- * @param {'en' | 'es'} lang
- */
-export function getTranslations(lang = 'en') {
+export function getTranslations(lang: 'en' | 'es' = 'en'): Translations {
   return translations[lang] || translations.en;
 }
 
-export const supportedLanguages = ['en', 'es'];
+export const supportedLanguages = ['en', 'es'] as const;

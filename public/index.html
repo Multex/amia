@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Amia - Video downloader</title>
+    <link rel="icon" type="image/png" href="/images/amia.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main>
+      <div class="header">
+        <h1>Amia</h1>
+        <p class="subtitle" id="page-subtitle">Video downloader</p>
+      </div>
+
+      <form id="download-form" method="POST" autocomplete="off">
+        <div class="form-group">
+          <label for="url" id="url-label">Video URL</label>
+          <div class="input-wrapper">
+            <input
+              type="url"
+              id="url"
+              name="url"
+              placeholder="https://... (YouTube, TikTok, Twitter, Instagram, etc.)"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="form-group">
+            <label for="format-select" id="format-label">Format</label>
+            <div class="input-wrapper">
+              <select name="format" id="format-select">
+                <option value="mp4">MP4 (video)</option>
+                <option value="webm">WEBM (video)</option>
+                <option value="mp3">MP3 (audio)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="quality-label">
+            <label for="quality-select" id="quality-label-text">Quality</label>
+            <div class="input-wrapper">
+              <select name="quality" id="quality-select">
+                <option value="best">Best available</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="playlist" id="playlist-checkbox" value="true">
+            <span id="playlist-label-text">Download entire playlist</span>
+          </label>
+        </div>
+
+        <button type="submit">
+          <span id="download-button-text">Download</span>
+        </button>
+      </form>
+
+      <section class="status-card" id="status-card">
+        <div class="status-header">
+          <span id="status-message"></span>
+          <span id="progress-text"></span>
+        </div>
+        <progress id="progress-bar" value="0" max="100"></progress>
+        <a id="download-link" class="download-btn" href="#" hidden>
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          <span id="download-link-text">Download file</span>
+        </a>
+        
+        <div id="playlist-container" class="playlist-container">
+          <h4 id="playlist-content-text">Playlist Content</h4>
+          <ul id="playlist-files" class="playlist-files"></ul>
+        </div>
+      </section>
+
+      <div class="platforms">
+        <h3 id="platforms-title">Supported platforms</h3>
+        <div class="platforms-list">
+          <span class="platform-tag">YouTube</span>
+          <span class="platform-tag">TikTok</span>
+          <span class="platform-tag">Twitter/X</span>
+          <span class="platform-tag">Instagram</span>
+          <span class="platform-tag">Facebook</span>
+          <span class="platform-tag">Twitch</span>
+          <span class="platform-tag">Vimeo</span>
+          <span class="platform-tag">SoundCloud</span>
+          <span class="platform-tag" id="platforms-more">+1000 more</span>
+        </div>
+      </div>
+
+      <p class="note" id="note-text">
+        <!-- Populated by JS -->
+      </p>
+
+      <footer class="footer">
+        <p>
+          Made with love &lt;3 by <a href="https://github.com/Multex" target="_blank" rel="noopener noreferrer">Ruginit</a>
+        </p>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">
+          <a href="https://github.com/Multex/amia" target="_blank" rel="noopener noreferrer">Source Code</a>
+          •
+          Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener noreferrer">yt-dlp</a>
+        </p>
+      </footer>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

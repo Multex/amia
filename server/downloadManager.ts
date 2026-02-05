@@ -3,8 +3,8 @@ import { rm, stat, readdir, mkdir } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import path from 'node:path';
 import archiver from 'archiver';
-import { runYtDlp } from '../../server/ytdlp.js';
-import { appConfig } from '../../server/config.js';
+import { runYtDlp } from './ytdlp.js';
+import { appConfig } from './config.js';
 
 const TEMP_DIR = appConfig.download.tempDir;
 const CLEANUP_INTERVAL_MS = appConfig.download.cleanupIntervalMs;
@@ -46,7 +46,7 @@ async function ensureTempDir() {
   await mkdir(TEMP_DIR, { recursive: true });
 }
 
-function buildArgs(format: FormatOption, quality: QualityOption, token: string) {
+function buildArgs(format: FormatOption, quality: QualityOption, token: string, downloadPlaylist: boolean) {
   const safeQuality =
     quality === 'audio' && format !== 'mp3' ? 'best' : quality;
 
@@ -56,13 +56,18 @@ function buildArgs(format: FormatOption, quality: QualityOption, token: string) 
   const args: string[] = [
     '--no-call-home',
     '--no-part',
-    '--yes-playlist',
     '--restrict-filenames',
-    '--playlist-end',
-    appConfig.download.maxPlaylistItems.toString(),
     '-o',
     outputTemplate
   ];
+
+  // Handle playlist vs single video
+  if (downloadPlaylist) {
+    args.push('--yes-playlist');
+    args.push('--playlist-end', appConfig.download.maxPlaylistItems.toString());
+  } else {
+    args.push('--no-playlist');
+  }
 
   if (format === 'mp3') {
     args.push(
@@ -168,7 +173,7 @@ function cleanupExpired() {
 
 setInterval(cleanupExpired, CLEANUP_INTERVAL_MS).unref();
 
-export async function startDownload(url: string, format: FormatOption, quality: QualityOption) {
+export async function startDownload(url: string, format: FormatOption, quality: QualityOption, downloadPlaylist: boolean = false) {
   await ensureTempDir();
   const token = randomUUID();
   const createdAt = Date.now();
@@ -189,14 +194,14 @@ export async function startDownload(url: string, format: FormatOption, quality: 
 
   downloads.set(token, record);
 
-  const args = buildArgs(format, quality, token);
+  const args = buildArgs(format, quality, token, downloadPlaylist);
   const { events } = runYtDlp({
     url,
     args,
     maxFileSizeMb: appConfig.download.maxFileSizeMb
   });
 
-  events.on('progress', (value) => {
+  events.on('progress', (value: number) => {
     const current = downloads.get(token);
     if (!current) return;
 
@@ -260,7 +265,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
   events.on('stdout', handleLine);
   events.on('stderr', handleLine);
 
-  events.on('error', (error) => {
+  events.on('error', (error: Error) => {
     const current = downloads.get(token);
     if (!current) return;
     current.status = 'error';
@@ -269,7 +274,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
     current.expiresAt = Date.now();
   });
 
-  events.on('close', async (code) => {
+  events.on('close', async (code: number | null) => {
     const current = downloads.get(token);
     if (!current) return;
     current.processClosed = true;
@@ -288,7 +293,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
 
       if (files.length === 0) {
         current.status = 'error';
-        current.error = 'No se encontraron archivos descargados.';
+        current.error = 'No files were downloaded.';
         current.expiresAt = Date.now();
         return;
       }
@@ -305,7 +310,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
 
     } catch (error) {
       current.status = 'error';
-      current.error = error instanceof Error ? error.message : 'Fallo al preparar los archivos.';
+      current.error = error instanceof Error ? error.message : 'Failed to prepare files.';
       current.expiresAt = Date.now();
     }
   });
@@ -376,7 +381,7 @@ export async function createZipStream(token: string) {
   }
 
   // Create ZIP
-  return new Promise<{ stream: any, filename: string, size: number } | undefined>((resolve, reject) => {
+  return new Promise<{ stream: ReturnType<typeof createReadStream>, filename: string, size: number } | undefined>((resolve, reject) => {
     const output = createWriteStream(zipPath);
     const archive = archiver('zip', {
       zlib: { level: 9 } // Sets the compression level.

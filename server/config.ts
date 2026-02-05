@@ -4,7 +4,7 @@ import { supportedLanguages } from './i18n.js';
 
 const MIN_MINUTES = 1;
 
-function envInt(name, defaultValue, { min, max } = {}) {
+function envInt(name: string, defaultValue: number, { min, max }: { min?: number; max?: number } = {}) {
   const raw = process.env[name];
   if (raw === undefined || raw === '') {
     return defaultValue;
@@ -33,32 +33,32 @@ const tempDir = process.env.DOWNLOAD_TEMP_DIR ?? 'temp';
 
 // Language configuration
 const language = process.env.LANGUAGE ?? 'en';
-const lang = supportedLanguages.includes(language) ? language : 'en';
+const lang = (supportedLanguages.includes(language as any) ? language : 'en') as 'en' | 'es';
 
-/**
- * @typedef {Object} DownloadConfig
- * @property {string} tempDir
- * @property {number} ttlMs
- * @property {number} cleanupIntervalMs
- * @property {number} maxFileSizeMb
- * @property {number} maxDownloadsPerFile
- * @property {number} maxPlaylistItems
- * @property {number} ttlMinutes
- * @property {number} cleanupMinutes
- *
- * @typedef {Object} RateLimitConfig
- * @property {number} maxRequests
- * @property {number} windowMs
- * @property {number} windowMinutes
- *
- * @typedef {Object} AppConfig
- * @property {DownloadConfig} download
- * @property {RateLimitConfig} rateLimit
- * @property {'en' | 'es'} language
- */
+export interface DownloadConfig {
+  tempDir: string;
+  ttlMs: number;
+  cleanupIntervalMs: number;
+  maxFileSizeMb: number;
+  maxDownloadsPerFile: number;
+  maxPlaylistItems: number;
+  ttlMinutes: number;
+  cleanupMinutes: number;
+}
 
-/** @type {AppConfig} */
-export const appConfig = Object.freeze({
+export interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+  windowMinutes: number;
+}
+
+export interface AppConfig {
+  download: DownloadConfig;
+  rateLimit: RateLimitConfig;
+  language: 'en' | 'es';
+}
+
+export const appConfig: AppConfig = Object.freeze({
   download: {
     tempDir: path.resolve(tempDir),
     ttlMs: ttlMinutes * 60 * 1000,
@@ -74,5 +74,5 @@ export const appConfig = Object.freeze({
     windowMs: rateWindowMinutes * 60 * 1000,
     windowMinutes: rateWindowMinutes
   },
-  language: lang
+  language: lang as 'en' | 'es'
 });
