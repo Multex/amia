@@ -1,11 +1,6 @@
-.astro/
 node_modules/
 dist/
 temp/
 .env
 .DS_Store
 npm-debug.log
-yarn.lock
-package-lock.json
-.claude/
-rugivid.code-workspace

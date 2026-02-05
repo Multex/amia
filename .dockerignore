@@ -1,11 +1,4 @@
 node_modules
-dist
-.astro
 temp
 .git
 .env
-.claude
-README.md
-CONTRIBUTING.md
-LICENSE
-.github
