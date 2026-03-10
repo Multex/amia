@@ -1,12 +1,18 @@
-import express, { Request, Response, NextFunction } from 'express';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { z } from 'zod';
-import { appConfig } from './config.js';
-import { getTranslations } from './i18n.js';
-import { startDownload, getDownloadStatus, createDownloadStream, createZipStream, getDownload } from './downloadManager.js';
-import { checkRateLimit } from './rateLimiter.js';
-import { getClientIp, json } from './utils.js';
+import express, { Request, Response, NextFunction } from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+import { appConfig } from "./config.js";
+import { getTranslations } from "./i18n.js";
+import {
+  startDownload,
+  getDownloadStatus,
+  createDownloadStream,
+  createZipStream,
+  getDownload,
+} from "./downloadManager.js";
+import { checkRateLimit } from "./rateLimiter.js";
+import { getClientIp, json } from "./utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,26 +24,28 @@ const PORT = process.env.PORT ?? 3000;
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, "../public")));
 
 // Error handling middleware
-const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => {
+const asyncHandler = (
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>,
+) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
 
 // Config endpoint for frontend
-app.get('/api/config', (req, res) => {
+app.get("/api/config", (req, res) => {
   res.json({
     language: appConfig.language,
     rateLimit: {
       maxRequests: appConfig.rateLimit.maxRequests,
-      windowMinutes: appConfig.rateLimit.windowMinutes
+      windowMinutes: appConfig.rateLimit.windowMinutes,
     },
     download: {
       ttlMinutes: appConfig.download.ttlMinutes,
-      maxFileSizeMb: appConfig.download.maxFileSizeMb
+      maxFileSizeMb: appConfig.download.maxFileSizeMb,
     },
     translations: {
       // Only send necessary translations to frontend
@@ -52,6 +60,7 @@ app.get('/api/config', (req, res) => {
       formatMp4: t.formatMp4,
       formatWebm: t.formatWebm,
       formatMp3: t.formatMp3,
+      formatWav: t.formatWav,
       qualityBest: t.qualityBest,
       quality1080p: t.quality1080p,
       quality720p: t.quality720p,
@@ -68,15 +77,18 @@ app.get('/api/config', (req, res) => {
       errorCouldNotStart: t.errorCouldNotStart,
       platformsTitle: t.platformsTitle,
       platformsMore: t.platformsMore,
-      noteRateLimit: t.noteRateLimit(appConfig.rateLimit.maxRequests, formatWindow(appConfig.rateLimit.windowMinutes)),
+      noteRateLimit: t.noteRateLimit(
+        appConfig.rateLimit.maxRequests,
+        formatWindow(appConfig.rateLimit.windowMinutes),
+      ),
       noteCleanup: t.noteCleanup(formatMinutes(appConfig.download.ttlMinutes)),
       noteMaxSize: t.noteMaxSize(appConfig.download.maxFileSizeMb),
       notePrivacy: t.notePrivacy,
       timeHour: t.timeHour,
       timeHours: t.timeHours,
       timeMinute: t.timeMinute,
-      timeMinutes: t.timeMinutes
-    }
+      timeMinutes: t.timeMinutes,
+    },
   });
 });
 
@@ -98,83 +110,93 @@ function formatMinutes(minutes: number) {
 const PayloadSchema = z
   .object({
     url: z.string().url(),
-    format: z.enum(['mp4', 'webm', 'mp3']).default('mp4'),
-    quality: z
-      .enum(['best', '1080p', '720p', '480p', 'audio'])
-      .default('best'),
-    playlist: z.boolean().default(false)
+    format: z.enum(["mp4", "webm", "mp3", "wav"]).default("mp4"),
+    quality: z.enum(["best", "1080p", "720p", "480p", "audio"]).default("best"),
+    playlist: z.boolean().default(false),
   })
   .transform((value) => {
     let quality = value.quality;
 
-    if (value.format === 'mp3') {
-      quality = 'audio';
-    } else if (quality === 'audio') {
-      quality = 'best';
+    if (value.format === "mp3" || value.format === "wav") {
+      quality = "audio";
+    } else if (quality === "audio") {
+      quality = "best";
     }
 
     return {
       url: value.url,
       format: value.format,
       quality,
-      playlist: value.playlist
+      playlist: value.playlist,
     };
   });
 
 function isValidUrl(candidate: string): boolean {
   try {
     const parsed = new URL(candidate);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
 }
 
 // POST /api/download - Start a new download
-app.post('/api/download', asyncHandler(async (req, res) => {
-  let payload: z.infer<typeof PayloadSchema>;
+app.post(
+  "/api/download",
+  asyncHandler(async (req, res) => {
+    let payload: z.infer<typeof PayloadSchema>;
 
-  try {
-    payload = PayloadSchema.parse(req.body);
-  } catch (error) {
-    res.status(400).json({
-      error: t.apiInvalidData,
-      details: error instanceof z.ZodError ? error.issues : t.apiInvalidDataDetails
-    });
-    return;
-  }
+    try {
+      payload = PayloadSchema.parse(req.body);
+    } catch (error) {
+      res.status(400).json({
+        error: t.apiInvalidData,
+        details:
+          error instanceof z.ZodError ? error.issues : t.apiInvalidDataDetails,
+      });
+      return;
+    }
 
-  if (!isValidUrl(payload.url)) {
-    res.status(400).json({ error: t.apiInvalidUrl });
-    return;
-  }
+    if (!isValidUrl(payload.url)) {
+      res.status(400).json({ error: t.apiInvalidUrl });
+      return;
+    }
 
-  const ip = getClientIp(req);
-  const allowed = checkRateLimit(ip);
+    const ip = getClientIp(req);
+    const allowed = checkRateLimit(ip);
 
-  if (!allowed) {
-    res.status(429).json({
-      error: t.apiRateLimitExceeded(appConfig.rateLimit.maxRequests, formatWindow(appConfig.rateLimit.windowMinutes))
-    });
-    return;
-  }
+    if (!allowed) {
+      res.status(429).json({
+        error: t.apiRateLimitExceeded(
+          appConfig.rateLimit.maxRequests,
+          formatWindow(appConfig.rateLimit.windowMinutes),
+        ),
+      });
+      return;
+    }
 
-  try {
-    const { token } = await startDownload(payload.url, payload.format, payload.quality, payload.playlist);
-    res.status(202).json({
-      token,
-      status: 'in_progress'
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: t.apiCouldNotStart,
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-}));
+    try {
+      const { token } = await startDownload(
+        payload.url,
+        payload.format,
+        payload.quality,
+        payload.playlist,
+      );
+      res.status(202).json({
+        token,
+        status: "in_progress",
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: t.apiCouldNotStart,
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }),
+);
 
 // GET /api/status/:token - Check download status
-app.get('/api/status/:token', (req, res) => {
+app.get("/api/status/:token", (req, res) => {
   const token = req.params.token;
 
   if (!token) {
@@ -193,82 +215,86 @@ app.get('/api/status/:token', (req, res) => {
 });
 
 // GET /api/download/:token - Download the file
-app.get('/api/download/:token', asyncHandler(async (req, res) => {
-  const token = req.params.token;
-  const mode = req.query.mode as string | undefined;
-  const indexParam = req.query.index as string | undefined;
+app.get(
+  "/api/download/:token",
+  asyncHandler(async (req, res) => {
+    const token = req.params.token;
+    const mode = req.query.mode as string | undefined;
+    const indexParam = req.query.index as string | undefined;
 
-  if (!token) {
-    res.status(400).json({ error: 'Token required.' });
-    return;
-  }
+    if (!token) {
+      res.status(400).json({ error: "Token required." });
+      return;
+    }
 
-  const record = getDownload(token);
+    const record = getDownload(token);
 
-  if (!record) {
-    res.status(404).json({ error: t.apiNotFound });
-    return;
-  }
+    if (!record) {
+      res.status(404).json({ error: t.apiNotFound });
+      return;
+    }
 
-  if (record.status === 'error') {
-    res.status(410).json({
-      error: t.apiInternalError,
-      details: record.error
+    if (record.status === "error") {
+      res.status(410).json({
+        error: t.apiInternalError,
+        details: record.error,
+      });
+      return;
+    }
+
+    if (record.status !== "completed") {
+      res.status(409).json({ error: t.apiFileNotReady });
+      return;
+    }
+
+    const MIME_MAP: Record<string, string> = {
+      mp4: "video/mp4",
+      webm: "video/webm",
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      m4a: "audio/mp4",
+      opus: "audio/ogg",
+      zip: "application/zip",
+    };
+
+    function sanitizeFilename(name: string) {
+      return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    }
+
+    let download;
+    if (mode === "zip") {
+      download = await createZipStream(token);
+    } else {
+      const index = indexParam ? parseInt(indexParam, 10) : undefined;
+      download = createDownloadStream(token, index);
+    }
+
+    if (!download) {
+      res.status(404).json({ error: t.apiNotFound });
+      return;
+    }
+
+    const ext = path.extname(download.filename).replace(".", "").toLowerCase();
+    const contentType = MIME_MAP[ext] ?? "application/octet-stream";
+    const filename = sanitizeFilename(download.filename);
+
+    res.set({
+      "Content-Type": contentType,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
     });
-    return;
-  }
 
-  if (record.status !== 'completed') {
-    res.status(409).json({ error: t.apiFileNotReady });
-    return;
-  }
+    if (download.size) {
+      res.set("Content-Length", download.size.toString());
+    }
 
-  const MIME_MAP: Record<string, string> = {
-    mp4: 'video/mp4',
-    webm: 'video/webm',
-    mp3: 'audio/mpeg',
-    m4a: 'audio/mp4',
-    opus: 'audio/ogg',
-    zip: 'application/zip'
-  };
-
-  function sanitizeFilename(name: string) {
-    return name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-  }
-
-  let download;
-  if (mode === 'zip') {
-    download = await createZipStream(token);
-  } else {
-    const index = indexParam ? parseInt(indexParam, 10) : undefined;
-    download = createDownloadStream(token, index);
-  }
-
-  if (!download) {
-    res.status(404).json({ error: t.apiNotFound });
-    return;
-  }
-
-  const ext = path.extname(download.filename).replace('.', '').toLowerCase();
-  const contentType = MIME_MAP[ext] ?? 'application/octet-stream';
-  const filename = sanitizeFilename(download.filename);
-
-  res.set({
-    'Content-Type': contentType,
-    'Content-Disposition': `attachment; filename="${filename}"`,
-    'Cache-Control': 'no-store'
-  });
-
-  if (download.size) {
-    res.set('Content-Length', download.size.toString());
-  }
-
-  (download.stream as any).pipe(res);
-}));
+    (download.stream as any).pipe(res);
+  }),
+);
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({ error: "Not found" });
 });
 
 // Error handler

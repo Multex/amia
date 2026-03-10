@@ -1,18 +1,18 @@
-import { randomUUID } from 'node:crypto';
-import { rm, stat, readdir, mkdir } from 'node:fs/promises';
-import { createReadStream, createWriteStream } from 'node:fs';
-import path from 'node:path';
-import archiver from 'archiver';
-import { runYtDlp } from './ytdlp.js';
-import { appConfig } from './config.js';
+import { randomUUID } from "node:crypto";
+import { rm, stat, readdir, mkdir } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import path from "node:path";
+import archiver from "archiver";
+import { runYtDlp } from "./ytdlp.js";
+import { appConfig } from "./config.js";
 
 const TEMP_DIR = appConfig.download.tempDir;
 const CLEANUP_INTERVAL_MS = appConfig.download.cleanupIntervalMs;
 const TTL_MS = appConfig.download.ttlMs;
 
-type DownloadStatus = 'pending' | 'in_progress' | 'completed' | 'error';
-type FormatOption = 'mp4' | 'webm' | 'mp3';
-type QualityOption = 'best' | '1080p' | '720p' | '480p' | 'audio';
+type DownloadStatus = "pending" | "in_progress" | "completed" | "error";
+type FormatOption = "mp4" | "webm" | "mp3" | "wav";
+type QualityOption = "best" | "1080p" | "720p" | "480p" | "audio";
 
 interface DownloadFile {
   filename: string;
@@ -46,66 +46,72 @@ async function ensureTempDir() {
   await mkdir(TEMP_DIR, { recursive: true });
 }
 
-function buildArgs(format: FormatOption, quality: QualityOption, token: string, downloadPlaylist: boolean) {
+function buildArgs(
+  format: FormatOption,
+  quality: QualityOption,
+  token: string,
+  downloadPlaylist: boolean,
+) {
   const safeQuality =
-    quality === 'audio' && format !== 'mp3' ? 'best' : quality;
+    quality === "audio" && format !== "mp3" ? "best" : quality;
 
   // Use %(autonumber)s to prevent filename collisions in playlists
-  const outputTemplate = path.join(TEMP_DIR, `${token}-%(autonumber)s-%(title)s.%(ext)s`);
+  const outputTemplate = path.join(
+    TEMP_DIR,
+    `${token}-%(autonumber)s-%(title)s.%(ext)s`,
+  );
 
   const args: string[] = [
-    '--no-call-home',
-    '--no-part',
-    '--restrict-filenames',
-    '-o',
-    outputTemplate
+    "--no-call-home",
+    "--no-part",
+    "--restrict-filenames",
+    "-o",
+    outputTemplate,
   ];
 
   // Handle playlist vs single video
   if (downloadPlaylist) {
-    args.push('--yes-playlist');
-    args.push('--playlist-end', appConfig.download.maxPlaylistItems.toString());
+    args.push("--yes-playlist");
+    args.push("--playlist-end", appConfig.download.maxPlaylistItems.toString());
   } else {
-    args.push('--no-playlist');
+    args.push("--no-playlist");
   }
 
-  if (format === 'mp3') {
+  if (format === "mp3" || format === "wav") {
     args.push(
-      '--extract-audio',
-      '--audio-format',
-      'mp3',
-      '--audio-quality',
-      '0'
+      "--extract-audio",
+      "--audio-format",
+      format,
+      "--audio-quality",
+      "0",
     );
   }
 
   const videoQuality = (() => {
     switch (safeQuality) {
-      case '1080p':
+      case "1080p":
         return 1080;
-      case '720p':
+      case "720p":
         return 720;
-      case '480p':
+      case "480p":
         return 480;
       default:
         return undefined;
     }
   })();
 
-  if (format === 'mp3') {
-    args.push('-f', 'bestaudio/best');
+  if (format === "mp3" || format === "wav") {
+    args.push("-f", "bestaudio/best");
   } else {
-    const container = format === 'mp4' ? 'mp4' : 'webm';
-    const heightConstraint = videoQuality
-      ? `[height<=${videoQuality}]`
-      : '';
+    const container = format === "mp4" ? "mp4" : "webm";
+    const heightConstraint = videoQuality ? `[height<=${videoQuality}]` : "";
     const formatSelector = [
       `bestvideo[ext=${container}]${heightConstraint}+bestaudio`,
       `best[ext=${container}]${heightConstraint}`,
-      'best'
-    ].join('/');
-    args.push('-f', formatSelector);
-    args.push('--merge-output-format', container);
+      "best",
+    ].join("/");
+    args.push("-f", formatSelector);
+    args.push("--merge-output-format", container);
   }
 
   return args;
@@ -114,7 +120,9 @@ function buildArgs(format: FormatOption, quality: QualityOption, token: string, 
 async function resolveFiles(token: string): Promise<DownloadFile[]> {
   const entries = await readdir(TEMP_DIR);
   // Match files starting with token- but NOT ending in .zip (to avoid self-inclusion if we zip later)
-  const matches = entries.filter((file) => file.startsWith(`${token}-`) && !file.endsWith('.zip'));
+  const matches = entries.filter(
+    (file) => file.startsWith(`${token}-`) && !file.endsWith(".zip"),
+  );
 
   const files: DownloadFile[] = [];
   for (const match of matches) {
@@ -124,8 +132,8 @@ async function resolveFiles(token: string): Promise<DownloadFile[]> {
       files.push({
         filePath: fullPath,
         filename: match,
-        downloadName: match.replace(`${token}-`, '').replace(/^\d+-/, ''), // Remove token and autonumber
-        fileSize: info.size
+        downloadName: match.replace(`${token}-`, "").replace(/^\d+-/, ""), // Remove token and autonumber
+        fileSize: info.size,
       });
     } catch {
       // ignore missing files
@@ -144,17 +152,21 @@ async function cleanupRecord(token: string) {
   for (const file of record.files) {
     try {
       await rm(file.filePath, { force: true });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Also try to delete any other files starting with token (zip, or partials)
   try {
     const entries = await readdir(TEMP_DIR);
-    const related = entries.filter(f => f.startsWith(`${token}-`));
+    const related = entries.filter((f) => f.startsWith(`${token}-`));
     for (const file of related) {
       await rm(path.join(TEMP_DIR, file), { force: true });
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   downloads.delete(token);
 }
@@ -163,7 +175,7 @@ function cleanupExpired() {
   const now = Date.now();
   for (const [token, record] of downloads.entries()) {
     if (
-      (record.status === 'completed' || record.status === 'error') &&
+      (record.status === "completed" || record.status === "error") &&
       record.expiresAt <= now
     ) {
       void cleanupRecord(token);
@@ -173,7 +185,12 @@ function cleanupExpired() {
 
 setInterval(cleanupExpired, CLEANUP_INTERVAL_MS).unref();
 
-export async function startDownload(url: string, format: FormatOption, quality: QualityOption, downloadPlaylist: boolean = false) {
+export async function startDownload(
+  url: string,
+  format: FormatOption,
+  quality: QualityOption,
+  downloadPlaylist: boolean = false,
+) {
   await ensureTempDir();
   const token = randomUUID();
   const createdAt = Date.now();
@@ -182,14 +199,14 @@ export async function startDownload(url: string, format: FormatOption, quality: 
     url,
     format,
     quality,
-    status: 'in_progress',
+    status: "in_progress",
     progress: 0,
     createdAt,
     updatedAt: createdAt,
     expiresAt: createdAt + TTL_MS,
     downloadCount: 0,
     files: [],
-    isPlaylist: false
+    isPlaylist: false,
   };
 
   downloads.set(token, record);
@@ -198,10 +215,10 @@ export async function startDownload(url: string, format: FormatOption, quality: 
   const { events } = runYtDlp({
     url,
     args,
-    maxFileSizeMb: appConfig.download.maxFileSizeMb
+    maxFileSizeMb: appConfig.download.maxFileSizeMb,
   });
 
-  events.on('progress', (value: number) => {
+  events.on("progress", (value: number) => {
     const current = downloads.get(token);
     if (!current) return;
 
@@ -209,7 +226,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
     // We could try to average it, but for now let's just show it.
     // Ideally we'd map (fileIndex * 100 + value) / totalFiles
     if (current.totalFiles && current.currentFileIndex !== undefined) {
-      const base = (current.currentFileIndex - 1) / current.totalFiles * 100;
+      const base = ((current.currentFileIndex - 1) / current.totalFiles) * 100;
       const added = value / current.totalFiles;
       current.progress = Math.min(99, base + added);
     } else {
@@ -224,7 +241,7 @@ export async function startDownload(url: string, format: FormatOption, quality: 
     if (!current) return;
 
     // Detect playlist
-    if (line.includes('Downloading playlist')) {
+    if (line.includes("Downloading playlist")) {
       current.isPlaylist = true;
     }
 
@@ -238,8 +255,8 @@ export async function startDownload(url: string, format: FormatOption, quality: 
 
     // Capture filenames
     let destination: string | undefined;
-    if (line.includes('Destination:')) {
-      destination = line.split('Destination:')[1]?.trim();
+    if (line.includes("Destination:")) {
+      destination = line.split("Destination:")[1]?.trim();
     }
     const mergeMatch = line.match(/Merging formats into "(.*)"/);
     if (mergeMatch && mergeMatch[1]) {
@@ -256,33 +273,34 @@ export async function startDownload(url: string, format: FormatOption, quality: 
       current.updatedAt = Date.now();
     }
 
-    if (line.toLowerCase().includes('error')) {
+    if (line.toLowerCase().includes("error")) {
       current.error = line;
       current.updatedAt = Date.now();
     }
   };
 
-  events.on('stdout', handleLine);
-  events.on('stderr', handleLine);
+  events.on("stdout", handleLine);
+  events.on("stderr", handleLine);
 
-  events.on('error', (error: Error) => {
+  events.on("error", (error: Error) => {
     const current = downloads.get(token);
     if (!current) return;
-    current.status = 'error';
+    current.status = "error";
     current.error = error.message;
     current.updatedAt = Date.now();
     current.expiresAt = Date.now();
   });
 
-  events.on('close', async (code: number | null) => {
+  events.on("close", async (code: number | null) => {
     const current = downloads.get(token);
     if (!current) return;
     current.processClosed = true;
     current.updatedAt = Date.now();
 
     if (code !== 0) {
-      current.status = 'error';
-      current.error = current.error ?? `yt-dlp exited with code ${code ?? 'unknown'}`;
+      current.status = "error";
+      current.error =
+        current.error ?? `yt-dlp exited with code ${code ?? "unknown"}`;
       current.expiresAt = Date.now();
       return;
     }
@@ -292,14 +310,14 @@ export async function startDownload(url: string, format: FormatOption, quality: 
       const files = await resolveFiles(token);
 
       if (files.length === 0) {
-        current.status = 'error';
-        current.error = 'No files were downloaded.';
+        current.status = "error";
+        current.error = "No files were downloaded.";
         current.expiresAt = Date.now();
         return;
       }
 
       current.files = files;
-      current.status = 'completed';
+      current.status = "completed";
       current.progress = 100;
       current.expiresAt = Date.now() + TTL_MS;
 
@@ -307,10 +325,10 @@ export async function startDownload(url: string, format: FormatOption, quality: 
       if (files.length > 1) {
         current.isPlaylist = true;
       }
-
     } catch (error) {
-      current.status = 'error';
-      current.error = error instanceof Error ? error.message : 'Failed to prepare files.';
+      current.status = "error";
+      current.error =
+        error instanceof Error ? error.message : "Failed to prepare files.";
       current.expiresAt = Date.now();
     }
   });
@@ -333,10 +351,10 @@ export function getDownloadStatus(token: string) {
     error: record.error,
     expiresAt: record.expiresAt,
     isPlaylist: record.isPlaylist,
-    files: record.files.map(f => ({
+    files: record.files.map((f) => ({
       name: f.downloadName,
-      size: f.fileSize
-    }))
+      size: f.fileSize,
+    })),
   };
 }
 
@@ -359,7 +377,7 @@ export async function incrementDownloadCount(token: string) {
 
 export async function createZipStream(token: string) {
   const record = downloads.get(token);
-  if (!record || record.status !== 'completed' || record.files.length === 0) {
+  if (!record || record.status !== "completed" || record.files.length === 0) {
     return undefined;
   }
 
@@ -370,39 +388,46 @@ export async function createZipStream(token: string) {
     await stat(zipPath);
     // If exists, return stream
     const stream = createReadStream(zipPath);
-    stream.on('close', () => incrementDownloadCount(token));
+    stream.on("close", () => incrementDownloadCount(token));
     return {
       stream,
       filename: `playlist-${token.slice(0, 8)}.zip`,
-      size: (await stat(zipPath)).size
+      size: (await stat(zipPath)).size,
     };
   } catch {
     // Zip doesn't exist, create it
   }
 
   // Create ZIP
-  return new Promise<{ stream: ReturnType<typeof createReadStream>, filename: string, size: number } | undefined>((resolve, reject) => {
+  return new Promise<
+    | {
+        stream: ReturnType<typeof createReadStream>;
+        filename: string;
+        size: number;
+      }
+    | undefined
+  >((resolve, reject) => {
     const output = createWriteStream(zipPath);
-    const archive = archiver('zip', {
-      zlib: { level: 9 } // Sets the compression level.
+    const archive = archiver("zip", {
+      zlib: { level: 9 }, // Sets the compression level.
     });
 
-    output.on('close', async () => {
+    output.on("close", async () => {
       try {
         const size = (await stat(zipPath)).size;
         const readStream = createReadStream(zipPath);
-        readStream.on('close', () => incrementDownloadCount(token));
+        readStream.on("close", () => incrementDownloadCount(token));
         resolve({
           stream: readStream,
           filename: `playlist-${token.slice(0, 8)}.zip`,
-          size
+          size,
         });
       } catch (err) {
         reject(err);
       }
     });
 
-    archive.on('error', (err) => reject(err));
+    archive.on("error", (err) => reject(err));
 
     archive.pipe(output);
 
@@ -416,7 +441,7 @@ export async function createZipStream(token: string) {
 
 export function createDownloadStream(token: string, fileIndex?: number) {
   const record = downloads.get(token);
-  if (!record || record.status !== 'completed' || record.files.length === 0) {
+  if (!record || record.status !== "completed" || record.files.length === 0) {
     return undefined;
   }
 
@@ -426,26 +451,30 @@ export function createDownloadStream(token: string, fileIndex?: number) {
   }
 
   // If index provided, download specific file
-  if (fileIndex !== undefined && fileIndex >= 0 && fileIndex < record.files.length) {
+  if (
+    fileIndex !== undefined &&
+    fileIndex >= 0 &&
+    fileIndex < record.files.length
+  ) {
     const file = record.files[fileIndex];
     const stream = createReadStream(file.filePath);
     // Increment count for individual files too, as per user request
-    stream.on('close', () => incrementDownloadCount(token));
+    stream.on("close", () => incrementDownloadCount(token));
 
     return {
       stream,
       filename: file.downloadName,
-      size: file.fileSize
+      size: file.fileSize,
     };
   }
 
   // Default: Return first file (backward compatibility)
   const file = record.files[0];
   const stream = createReadStream(file.filePath);
-  stream.on('close', () => incrementDownloadCount(token));
+  stream.on("close", () => incrementDownloadCount(token));
   return {
     stream,
     filename: file.downloadName,
-    size: file.fileSize
+    size: file.fileSize,
   };
 }
