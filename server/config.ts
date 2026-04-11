@@ -39,6 +39,9 @@ const maxFileSizeMb = envInt("DOWNLOAD_MAX_FILE_SIZE_MB", 500, { min: 1 });
 const maxDownloadsPerFile = envInt("DOWNLOAD_MAX_DOWNLOADS_PER_FILE", 1, {
   min: 0,
 });
+const maxConcurrentDownloads = envInt("DOWNLOAD_MAX_CONCURRENT", 3, {
+  min: 1,
+});
 const tempDir = process.env.DOWNLOAD_TEMP_DIR ?? "temp";
 const trustProxy =
   process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1";
@@ -55,6 +58,7 @@ export interface DownloadConfig {
   cleanupIntervalMs: number;
   maxFileSizeMb: number;
   maxDownloadsPerFile: number;
+  maxConcurrentDownloads: number;
   maxPlaylistItems: number;
   ttlMinutes: number;
   cleanupMinutes: number;
@@ -81,6 +85,7 @@ export const appConfig: AppConfig = Object.freeze({
     cleanupIntervalMs: cleanupMinutes * 60 * 1000,
     maxFileSizeMb,
     maxDownloadsPerFile,
+    maxConcurrentDownloads,
     maxPlaylistItems: envInt("DOWNLOAD_MAX_PLAYLIST_ITEMS", 5, { min: 1 }),
     ttlMinutes,
     cleanupMinutes,

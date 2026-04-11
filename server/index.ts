@@ -12,6 +12,7 @@ import {
   createDownloadStream,
   createZipStream,
   getDownload,
+  getActiveDownloads,
 } from "./downloadManager.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { getClientIp, json } from "./utils.js";
@@ -265,6 +266,11 @@ app.post(
           formatWindow(appConfig.rateLimit.windowMinutes),
         ),
       });
+      return;
+    }
+
+    if (getActiveDownloads() >= appConfig.download.maxConcurrentDownloads) {
+      res.status(429).json({ error: t.apiServerBusy });
       return;
     }
 

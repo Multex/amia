@@ -29,6 +29,15 @@ const TEMP_DIR = appConfig.download.tempDir;
 const CLEANUP_INTERVAL_MS = appConfig.download.cleanupIntervalMs;
 const TTL_MS = appConfig.download.ttlMs;
 
+// Tracks how many yt-dlp processes are currently running.
+// Incremented when a download starts, decremented exactly once
+// when the process ends (success or error).
+let activeDownloads = 0;
+
+export function getActiveDownloads(): number {
+  return activeDownloads;
+}
+
 type DownloadStatus = "pending" | "in_progress" | "completed" | "error";
 type FormatOption = "mp4" | "webm" | "mp3" | "wav";
 type QualityOption = "best" | "1080p" | "720p" | "480p" | "audio";
@@ -229,6 +238,17 @@ export async function startDownload(
   };
 
   downloads.set(token, record);
+  activeDownloads++;
+
+  // Ensures the counter is decremented exactly once regardless of
+  // whether the process errors, closes normally, or both events fire.
+  let concurrencyReleased = false;
+  const releaseConcurrency = () => {
+    if (!concurrencyReleased) {
+      concurrencyReleased = true;
+      activeDownloads--;
+    }
+  };
 
   const args = buildArgs(format, quality, token, downloadPlaylist);
   const { events } = runYtDlp({
@@ -308,6 +328,7 @@ export async function startDownload(
     current.error = error.message;
     current.updatedAt = Date.now();
     current.expiresAt = Date.now();
+    releaseConcurrency();
     console.error(`[download:${token}] process error:`, error.message);
   });
 
@@ -322,6 +343,7 @@ export async function startDownload(
       current.error =
         current.error ?? `yt-dlp exited with code ${code ?? "unknown"}`;
       current.expiresAt = Date.now();
+      releaseConcurrency();
       console.error(
         `[download:${token}] failed (code ${code}):`,
         current.error,
@@ -340,6 +362,7 @@ export async function startDownload(
         return;
       }
 
+      releaseConcurrency();
       current.files = files;
       current.status = "completed";
       current.progress = 100;
@@ -351,6 +374,7 @@ export async function startDownload(
       }
     } catch (error) {
       current.status = "error";
+      releaseConcurrency();
       current.error =
         error instanceof Error ? error.message : "Failed to prepare files.";
       current.expiresAt = Date.now();
