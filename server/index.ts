@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { lookup } from "node:dns/promises";
 import { z } from "zod";
 import { appConfig } from "./config.js";
 import { getTranslations } from "./i18n.js";
@@ -131,10 +132,75 @@ const PayloadSchema = z
     };
   });
 
-function isValidUrl(candidate: string): boolean {
+function isPrivateIp(hostname: string): boolean {
+  // Strip IPv6 brackets e.g. [::1]
+  const host = hostname.replace(/^\[|\]$/g, "");
+
+  // Block known internal hostnames
+  const blockedHostnames = ["localhost", "ip6-localhost", "ip6-loopback"];
+  if (blockedHostnames.includes(host.toLowerCase())) return true;
+
+  // Block internal TLDs
+  if (/\.(local|internal|localhost|intranet|lan)$/i.test(host)) return true;
+
+  // Block IPv4 private/reserved ranges
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (
+      a === 0 || // 0.x.x.x      — this network
+      a === 10 || // 10.x.x.x     — private
+      a === 127 || // 127.x.x.x    — loopback
+      (a === 169 && b === 254) || // 169.254.x.x  — link-local (AWS metadata)
+      (a === 172 && b >= 16 && b <= 31) || // 172.16–31.x  — private
+      (a === 192 && b === 168) || // 192.168.x.x  — private
+      (a === 192 && b === 0 && Number(ipv4[3]) === 0) || // 192.0.0.x   — IETF protocol
+      (a === 100 && b >= 64 && b <= 127) || // 100.64–127.x — CGNAT
+      (a === 198 && (b === 18 || b === 19)) || // 198.18–19.x  — benchmarking
+      a >= 224 // 224.x.x.x+   — multicast/reserved
+    )
+      return true;
+  }
+
+  // Block IPv6 private/reserved ranges
+  const h = host.toLowerCase();
+  if (
+    h === "::" || // unspecified
+    h === "::1" || // loopback
+    h.startsWith("::ffff:") || // IPv4-mapped
+    h.startsWith("fc") || // unique local fc00::/7
+    h.startsWith("fd") || // unique local fd00::/8
+    h.startsWith("fe80") || // link-local fe80::/10
+    h.startsWith("2001:db8") // documentation
+  )
+    return true;
+
+  return false;
+}
+
+async function isValidUrl(candidate: string): Promise<boolean> {
   try {
     const parsed = new URL(candidate);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+      return false;
+
+    // First pass: block obvious private hostnames/IPs before touching the network
+    if (isPrivateIp(parsed.hostname)) return false;
+
+    // Second pass: resolve DNS and check every returned address.
+    // This closes the DNS-rebinding vector and makes redirect-chain attacks
+    // much harder — the hostname must resolve to a public IP right now.
+    try {
+      const addresses = await lookup(parsed.hostname, { all: true });
+      for (const { address } of addresses) {
+        if (isPrivateIp(address)) return false;
+      }
+    } catch {
+      // If the hostname can't be resolved at all, fail closed.
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }
@@ -157,7 +223,7 @@ app.post(
       return;
     }
 
-    if (!isValidUrl(payload.url)) {
+    if (!(await isValidUrl(payload.url))) {
       res.status(400).json({ error: t.apiInvalidUrl });
       return;
     }
