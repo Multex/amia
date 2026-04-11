@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookup } from "node:dns/promises";
@@ -27,6 +28,27 @@ const PORT = process.env.PORT ?? 3000;
 if (appConfig.trustProxy) {
   app.set("trust proxy", 1);
 }
+
+// Security headers — disable X-Powered-By and set sensible defaults
+app.disable("x-powered-by");
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 
 // Middleware
 app.use(express.json());
