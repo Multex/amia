@@ -6,6 +6,25 @@ import archiver from "archiver";
 import { runYtDlp } from "./ytdlp.js";
 import { appConfig } from "./config.js";
 
+// Sanitize an error message before sending it to clients.
+// Strips absolute file paths and other server-internal details that
+// yt-dlp routinely includes in its output. The raw error is always
+// logged to stdout so it still shows up in Docker / server logs.
+function sanitizeError(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+
+  // Strip Unix absolute paths  e.g. /app/temp/uuid-file.mp4
+  let msg = raw.replace(/(?<!\w)\/[a-zA-Z0-9._/\-]+/g, "");
+  // Strip Windows absolute paths  e.g. C:\Users\...
+  msg = msg.replace(/[A-Za-z]:\\[^\s,'"]+/g, "");
+  // Collapse leftover double spaces and trim
+  msg = msg.replace(/\s{2,}/g, " ").trim();
+
+  // If nothing meaningful is left, return undefined so the frontend
+  // falls back to its own generic error string.
+  return msg.length >= 5 ? msg.slice(0, 200) : undefined;
+}
+
 const TEMP_DIR = appConfig.download.tempDir;
 const CLEANUP_INTERVAL_MS = appConfig.download.cleanupIntervalMs;
 const TTL_MS = appConfig.download.ttlMs;
@@ -289,6 +308,7 @@ export async function startDownload(
     current.error = error.message;
     current.updatedAt = Date.now();
     current.expiresAt = Date.now();
+    console.error(`[download:${token}] process error:`, error.message);
   });
 
   events.on("close", async (code: number | null) => {
@@ -302,6 +322,10 @@ export async function startDownload(
       current.error =
         current.error ?? `yt-dlp exited with code ${code ?? "unknown"}`;
       current.expiresAt = Date.now();
+      console.error(
+        `[download:${token}] failed (code ${code}):`,
+        current.error,
+      );
       return;
     }
 
@@ -348,7 +372,7 @@ export function getDownloadStatus(token: string) {
     token: record.token,
     status: record.status,
     progress: Math.round(record.progress),
-    error: record.error,
+    error: sanitizeError(record.error),
     expiresAt: record.expiresAt,
     isPlaylist: record.isPlaylist,
     files: record.files.map((f) => ({

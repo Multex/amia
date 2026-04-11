@@ -280,9 +280,12 @@ app.post(
         status: "in_progress",
       });
     } catch (error) {
+      console.error(
+        "[download] failed to start:",
+        error instanceof Error ? error.message : error,
+      );
       res.status(500).json({
         error: t.apiCouldNotStart,
-        details: error instanceof Error ? error.message : String(error),
       });
     }
   }),
@@ -328,9 +331,9 @@ app.get(
     }
 
     if (record.status === "error") {
+      console.error(`[download:${token}] serving error state:`, record.error);
       res.status(410).json({
         error: t.apiInternalError,
-        details: record.error,
       });
       return;
     }
