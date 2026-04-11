@@ -23,6 +23,11 @@ const t = getTranslations(appConfig.language);
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+// Trust proxy — must be set before any route/middleware that reads req.ip
+if (appConfig.trustProxy) {
+  app.set("trust proxy", 1);
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
@@ -373,4 +378,7 @@ app.listen(PORT, () => {
   console.log(`Amia server running on port ${PORT}`);
   console.log(`Language: ${appConfig.language}`);
   console.log(`Temp directory: ${appConfig.download.tempDir}`);
+  console.log(
+    `Trust proxy: ${appConfig.trustProxy ? "enabled (1 hop)" : "disabled"}`,
+  );
 });

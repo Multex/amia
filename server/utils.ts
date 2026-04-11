@@ -1,45 +1,38 @@
-import { Request } from 'express';
+import { Request } from "express";
 
 export function getClientIp(request: Request): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (forwarded && typeof forwarded === 'string') {
-    const ip = forwarded.split(',')[0]?.trim();
-    if (ip) return ip;
-  }
-  
-  const realIp = request.headers['x-real-ip'];
-  if (realIp && typeof realIp === 'string') return realIp;
-
-  const remote = (request as any).ip ?? undefined;
-  if (remote) return remote;
-
-  const connection = (request as any).connection;
-  if (connection?.remoteAddress) return connection.remoteAddress;
-
-  return 'unknown';
+  // req.ip is handled by Express based on the 'trust proxy' setting:
+  // - TRUST_PROXY=true  → Express reads X-Forwarded-For, strips client-forged
+  //                       hops, and returns the real client IP from the proxy.
+  // - TRUST_PROXY=false → Express ignores all proxy headers and returns the
+  //                       raw TCP socket address, which cannot be spoofed.
+  return request.ip ?? request.socket?.remoteAddress ?? "unknown";
 }
 
-export function json(data: unknown, init?: { status?: number; headers?: Record<string, string> }) {
+export function json(
+  data: unknown,
+  init?: { status?: number; headers?: Record<string, string> },
+) {
   const status = init?.status ?? 200;
   const headers = init?.headers ?? {};
-  
+
   return {
     status,
     headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...headers
+      "content-type": "application/json; charset=utf-8",
+      ...headers,
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   };
 }
 
 export function methodNotAllowed(allowed: string[]) {
   return {
     status: 405,
-    headers: { Allow: allowed.join(', ') },
+    headers: { Allow: allowed.join(", ") },
     body: JSON.stringify({
-      error: 'Method not allowed',
-      allowed
-    })
+      error: "Method not allowed",
+      allowed,
+    }),
   };
 }
