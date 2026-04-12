@@ -1,6 +1,6 @@
 # Amia
 
-<p align="center"><a href="https://dl.ruginit.xyz" title="Amia"><img src="public/images/amia.png" alt="Amia" width="30%"></a></p>
+<p align="center"><a href="https://amia.ruginit.xyz" title="Amia"><img src="public/images/amia.png" alt="Amia" width="30%"></a></p>
 
 Simple self-hosted video downloader with a web UI. Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
