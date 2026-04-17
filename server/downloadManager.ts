@@ -406,12 +406,9 @@ export function getDownloadStatus(token: string) {
   };
 }
 
-export async function incrementDownloadCount(token: string) {
+export async function handleDownloadClose(token: string) {
   const record = downloads.get(token);
   if (!record) return;
-
-  record.downloadCount++;
-  record.updatedAt = Date.now();
 
   const maxDownloads = appConfig.download.maxDownloadsPerFile;
 
@@ -429,6 +426,15 @@ export async function createZipStream(token: string) {
     return undefined;
   }
 
+  const maxDownloads = appConfig.download.maxDownloadsPerFile;
+  if (maxDownloads > 0 && record.downloadCount >= maxDownloads) {
+    return undefined;
+  }
+
+  // Synchronous increment to prevent race conditions
+  record.downloadCount++;
+  record.updatedAt = Date.now();
+
   const zipPath = path.join(TEMP_DIR, `${token}-archive.zip`);
 
   // Check if zip already exists
@@ -436,7 +442,7 @@ export async function createZipStream(token: string) {
     await stat(zipPath);
     // If exists, return stream
     const stream = createReadStream(zipPath);
-    stream.on("close", () => incrementDownloadCount(token));
+    stream.on("close", () => handleDownloadClose(token));
     return {
       stream,
       filename: `playlist-${token.slice(0, 8)}.zip`,
@@ -464,7 +470,7 @@ export async function createZipStream(token: string) {
       try {
         const size = (await stat(zipPath)).size;
         const readStream = createReadStream(zipPath);
-        readStream.on("close", () => incrementDownloadCount(token));
+        readStream.on("close", () => handleDownloadClose(token));
         resolve({
           stream: readStream,
           filename: `playlist-${token.slice(0, 8)}.zip`,
@@ -498,6 +504,10 @@ export function createDownloadStream(token: string, fileIndex?: number) {
     return undefined;
   }
 
+  // Synchronous increment to prevent race conditions
+  record.downloadCount++;
+  record.updatedAt = Date.now();
+
   // If index provided, download specific file
   if (
     fileIndex !== undefined &&
@@ -506,8 +516,8 @@ export function createDownloadStream(token: string, fileIndex?: number) {
   ) {
     const file = record.files[fileIndex];
     const stream = createReadStream(file.filePath);
-    // Increment count for individual files too, as per user request
-    stream.on("close", () => incrementDownloadCount(token));
+    // Trigger cleanup on close if limit reached
+    stream.on("close", () => handleDownloadClose(token));
 
     return {
       stream,
@@ -519,7 +529,7 @@ export function createDownloadStream(token: string, fileIndex?: number) {
   // Default: Return first file (backward compatibility)
   const file = record.files[0];
   const stream = createReadStream(file.filePath);
-  stream.on("close", () => incrementDownloadCount(token));
+  stream.on("close", () => handleDownloadClose(token));
   return {
     stream,
     filename: file.downloadName,
