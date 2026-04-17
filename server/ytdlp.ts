@@ -22,7 +22,7 @@ export function runYtDlp({ url, args, maxFileSizeMb = appConfig.download.maxFile
     maxFileSizeMb && maxFileSizeMb > 0
       ? ['--max-filesize', `${maxFileSizeMb}M`]
       : [];
-  const ytArgs = [url, '--newline', '--no-warnings', ...sizeArgs, ...args];
+  const ytArgs = [url, '--ignore-config', '--newline', '--no-warnings', ...sizeArgs, ...args];
   const child = spawn('yt-dlp', ytArgs, {
     stdio: ['ignore', 'pipe', 'pipe']
   });
