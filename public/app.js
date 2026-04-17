@@ -201,10 +201,18 @@ function initializeApp(config) {
                 ? (file.size / 1024 / 1024).toFixed(1) + " MB"
                 : "";
 
-              li.innerHTML = `
-                <span class="file-name" title="${file.name}">${file.name}</span>
-                <span class="file-size">${sizeStr || ""}</span>
-              `;
+              const nameSpan = document.createElement("span");
+              nameSpan.className = "file-name";
+              nameSpan.title = file.name;
+              nameSpan.textContent = file.name;
+
+              const sizeSpan = document.createElement("span");
+              sizeSpan.className = "file-size";
+              sizeSpan.textContent = sizeStr;
+
+              li.appendChild(nameSpan);
+              li.appendChild(sizeSpan);
+              
               playlistFiles.appendChild(li);
             });
             playlistContainer.classList.add("active");
