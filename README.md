@@ -6,7 +6,7 @@ Simple self-hosted video downloader with a web UI. Powered by [yt-dlp](https://g
 
 ## Why "Amia"?
 
-Amia is the online alias of [Mizuki Akiyama](https://www.sekaipedia.org/wiki/Akiyama_Mizuki) from Project Sekai's [Niigo group](https://www.sekaipedia.org/wiki/25-ji,_Nightcord_de.). Mizuki is a video editor, and just like how she work with videos, this tool help you download and manage videos from the internet!
+Amia is the online alias of [Mizuki Akiyama](https://www.sekaipedia.org/wiki/Akiyama_Mizuki) from Project Sekai's [Niigo group](https://www.sekaipedia.org/wiki/25-ji,_Nightcord_de.). Mizuki is a video editor, and just like how she work with videos, this tool help you download videos from the internet!
 
 <p><a href="https://youtu.be/yzNM3-tq8vQ" title="Amia"><img src="public/images/mizu5.png" alt="Amia"></a></p>
 
@@ -14,6 +14,7 @@ Amia is the online alias of [Mizuki Akiyama](https://www.sekaipedia.org/wiki/Aki
 
 - 🎬 Download from 1000+ sites (YouTube, TikTok, Twitter/X, etc.)
 - 🌍 Multi-language (English / Spanish)
+- 🎵 High-Quality Music Metadata via [SomeDL](https://github.com/ChemistryGull/SomeDL)
 - 📦 Playlist support (optional, ZIP download)
 - 🔒 Private downloads (UUID tokens, no database)
 - 🐳 Docker ready
@@ -57,6 +58,7 @@ Copy `.env.example` to `.env` and adjust:
 | `DOWNLOAD_MAX_PLAYLIST_ITEMS` | `5` | Max videos from a playlist |
 | `DOWNLOAD_RATE_LIMIT_MAX` | `5` | Max downloads per IP in time window |
 | `DOWNLOAD_RATE_LIMIT_WINDOW_MINUTES` | `60` | Rate limit time window in minutes |
+| `DOWNLOAD_MAX_CONCURRENT` | `3` | Max number of concurrent downloads allowed |
 
 See `.env.example` for detailed comments on each variable.
 
@@ -64,7 +66,7 @@ See `.env.example` for detailed comments on each variable.
 
 - **Backend**: Express + TypeScript (tsx)
 - **Frontend**: Vanilla HTML/CSS/JS
-- **Downloader**: yt-dlp + ffmpeg
+- **Downloader**: yt-dlp + ffmpeg + somedl
 
 ## Reverse Proxy
 
@@ -80,4 +82,5 @@ MIT License - See `LICENSE` file for details.
 
 ## Credits
 
-Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) - A feature-rich command-line audio/video downloader
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - A feature-rich command-line audio/video downloader
+- [SomeDL](https://github.com/ChemistryGull/SomeDL) - A command line utility to download songs from youtube with metadata from different APIs without the need for API-tokens or login. 
