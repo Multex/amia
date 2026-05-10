@@ -113,6 +113,15 @@ function initializeApp(config) {
     } else {
       setVideoQualityOptions();
     }
+
+    const metadataGroup = document.getElementById("metadata-group");
+    const metadataCheckbox = document.getElementById("metadata-checkbox");
+    if (formatSelect.value === "mp3") {
+      metadataGroup.style.display = "block";
+    } else {
+      metadataGroup.style.display = "none";
+      if (metadataCheckbox) metadataCheckbox.checked = false;
+    }
   }
 
   // Initialize quality options
@@ -272,6 +281,7 @@ function initializeApp(config) {
       format: formData.get("format"),
       quality: formData.get("quality"),
       playlist: formData.get("playlist") === "true",
+      metadata: formData.get("metadata") === "true",
     };
 
     try {

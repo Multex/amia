@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { rm, stat, readdir, mkdir } from "node:fs/promises";
+import { rm, stat, readdir, mkdir, rename } from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import path from "node:path";
 import archiver from "archiver";
 import { runYtDlp } from "./ytdlp.js";
+import { runSomeDl } from "./somedl.js";
 import { appConfig } from "./config.js";
 
 // Sanitize an error message before sending it to clients.
@@ -218,6 +219,7 @@ export async function startDownload(
   format: FormatOption,
   quality: QualityOption,
   downloadPlaylist: boolean = false,
+  metadata: boolean = false,
 ) {
   await ensureTempDir();
   const token = randomUUID();
@@ -250,12 +252,19 @@ export async function startDownload(
     }
   };
 
-  const args = buildArgs(format, quality, token, downloadPlaylist);
-  const { events } = runYtDlp({
-    url,
-    args,
-    maxFileSizeMb: appConfig.download.maxFileSizeMb,
-  });
+  let events;
+  if (metadata && format === "mp3") {
+    const cwd = path.join(TEMP_DIR, token);
+    await mkdir(cwd, { recursive: true });
+    events = runSomeDl({ url, cwd }).events;
+  } else {
+    const args = buildArgs(format, quality, token, downloadPlaylist);
+    events = runYtDlp({
+      url,
+      args,
+      maxFileSizeMb: appConfig.download.maxFileSizeMb,
+    }).events;
+  }
 
   events.on("progress", (value: number) => {
     const current = downloads.get(token);
@@ -352,6 +361,22 @@ export async function startDownload(
     }
 
     try {
+      // If metadata and mp3, SomeDL was used inside a subdirectory. Move the file up.
+      if (metadata && format === "mp3") {
+        const cwd = path.join(TEMP_DIR, token);
+        try {
+          const dlFiles = await readdir(cwd);
+          for (const file of dlFiles) {
+            if (file.endsWith(".mp3")) {
+              await rename(path.join(cwd, file), path.join(TEMP_DIR, `${token}-1-${file}`));
+            }
+          }
+          await rm(cwd, { recursive: true, force: true });
+        } catch (err) {
+          // Ignore, errors will be caught by resolveFiles yielding 0 files
+        }
+      }
+
       // Resolve all downloaded files
       const files = await resolveFiles(token);
 

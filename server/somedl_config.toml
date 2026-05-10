@@ -1,0 +1,44 @@
+[metadata]
+lyrics = true
+copyright = true
+isrc = true
+genre = true
+album_artist = true
+multiple_artists = false
+artist_separator = "; "
+ffmpeg_metadata = false
+cover_art_file = false
+lyrics_type = "synced_if_available"
+synced_lyrics_metadata = true
+lrc_file = false
+lyrics_id3_synced_uslt_fallback = true
+lyrics_source = "lrclib"
+lyrics_fallback_source = "youtube"
+
+[download]
+format = "mp3"
+quality = 5
+id3_version = 3
+output_dir = "."
+output = "{artist} - {song}"
+number_downloaders = 2
+queue_size = 2
+cookies_path = ""
+cookies_from_browser = ""
+prefer_playlist = false
+fetch_albums = false
+check_if_file_exists = false
+download_archive = ""
+sync_files = []
+
+[api]
+musicbrainz = true
+genius = true
+deezer = true
+max_retry = 3
+genius_album_check = true
+
+[logging]
+log_level = 4
+download_report = 100
+config_version = 5

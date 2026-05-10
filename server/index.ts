@@ -142,6 +142,7 @@ const PayloadSchema = z
     format: z.enum(["mp4", "webm", "mp3", "wav"]).default("mp4"),
     quality: z.enum(["best", "1080p", "720p", "480p", "audio"]).default("best"),
     playlist: z.boolean().default(false),
+    metadata: z.boolean().optional().default(false),
   })
   .transform((value) => {
     let quality = value.quality;
@@ -157,6 +158,7 @@ const PayloadSchema = z
       format: value.format,
       quality,
       playlist: value.playlist,
+      metadata: value.metadata,
     };
   });
 
@@ -280,6 +282,7 @@ app.post(
         payload.format,
         payload.quality,
         payload.playlist,
+        payload.metadata,
       );
       res.status(202).json({
         token,

@@ -1,10 +1,14 @@
 # Dockerfile
 FROM node:20-alpine
 
-# Install yt-dlp and ffmpeg (required)
-RUN apk add --no-cache ffmpeg python3 curl \
+# Install yt-dlp, ffmpeg, and SomeDL (required)
+RUN apk add --no-cache ffmpeg python3 py3-pip curl \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-    && chmod a+rx /usr/local/bin/yt-dlp
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    && pip install somedl --break-system-packages
+
+# Copy custom SomeDL configuration
+COPY server/somedl_config.toml /root/.config/SomeDL/somedl_config.toml
 
 # Enable pnpm
 ENV PNPM_HOME="/pnpm"
