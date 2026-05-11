@@ -300,6 +300,15 @@ app.post(
   }),
 );
 
+// GET /api/health - Server healthcheck
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    activeDownloads: getActiveDownloads(),
+    uptime: process.uptime(),
+  });
+});
+
 // GET /api/status/:token - Check download status
 app.get("/api/status/:token", (req, res) => {
   const token = req.params.token;

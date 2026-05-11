@@ -14,16 +14,13 @@ import { appConfig } from "./config.js";
 function sanitizeError(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
 
-  // Strip Unix absolute paths  e.g. /app/temp/uuid-file.mp4
-  let msg = raw.replace(/(?<!\w)\/[a-zA-Z0-9._/\-]+/g, "");
-  // Strip Windows absolute paths  e.g. C:\Users\...
-  msg = msg.replace(/[A-Za-z]:\\[^\s,'"]+/g, "");
-  // Collapse leftover double spaces and trim
-  msg = msg.replace(/\s{2,}/g, " ").trim();
-
-  // If nothing meaningful is left, return undefined so the frontend
-  // falls back to its own generic error string.
-  return msg.length >= 5 ? msg.slice(0, 200) : undefined;
+  // Strip Unix absolute paths e.g. /app/temp/uuid-file.mp4
+  let msg = raw.replace(/\/[\w\-\.\/]+/g, "[path]");
+  // Also strip Windows paths
+  msg = msg.replace(/[A-Za-z]:\\[^\s]*/g, "[path]");
+  // Limit length
+  msg = msg.length > 200 ? msg.slice(0, 200) + "..." : msg;
+  return msg;
 }
 
 const TEMP_DIR = appConfig.download.tempDir;
@@ -67,6 +64,7 @@ interface DownloadRecord {
   currentFileIndex?: number;
   error?: string;
   processClosed?: boolean;
+  cancel?: () => void;
 }
 
 const downloads = new Map<string, DownloadRecord>();
@@ -202,11 +200,23 @@ async function cleanupRecord(token: string) {
 
 function cleanupExpired() {
   const now = Date.now();
+  const STALL_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
   for (const [token, record] of downloads.entries()) {
     if (
       (record.status === "completed" || record.status === "error") &&
       record.expiresAt <= now
     ) {
+      void cleanupRecord(token);
+    } else if (
+      record.status === "in_progress" &&
+      now - record.updatedAt > STALL_TIMEOUT_MS
+    ) {
+      console.warn(`[download:${token}] Stalled for too long, cancelling.`);
+      record.status = "error";
+      record.error = "Download timed out (stalled).";
+      if (record.cancel) record.cancel();
+      record.processClosed = true;
       void cleanupRecord(token);
     }
   }
@@ -253,17 +263,35 @@ export async function startDownload(
   };
 
   let events;
-  if (metadata && format === "mp3") {
-    const cwd = path.join(TEMP_DIR, token);
-    await mkdir(cwd, { recursive: true });
-    events = runSomeDl({ url, cwd }).events;
-  } else {
-    const args = buildArgs(format, quality, token, downloadPlaylist);
-    events = runYtDlp({
-      url,
-      args,
-      maxFileSizeMb: appConfig.download.maxFileSizeMb,
-    }).events;
+  try {
+    let childProcess;
+    if (metadata && format === "mp3") {
+      const cwd = path.join(TEMP_DIR, token);
+      await mkdir(cwd, { recursive: true });
+      const res = runSomeDl({ url, cwd });
+      events = res.events;
+      childProcess = res.child;
+    } else {
+      const args = buildArgs(format, quality, token, downloadPlaylist);
+      const res = runYtDlp({
+        url,
+        args,
+        maxFileSizeMb: appConfig.download.maxFileSizeMb,
+      });
+      events = res.events;
+      childProcess = res.child;
+    }
+
+    record.cancel = () => {
+      try {
+        childProcess.kill("SIGKILL");
+      } catch {
+        // Already dead
+      }
+    };
+  } catch (error) {
+    releaseConcurrency();
+    throw error;
   }
 
   events.on("progress", (value: number) => {
@@ -343,7 +371,17 @@ export async function startDownload(
 
   events.on("close", async (code: number | null) => {
     const current = downloads.get(token);
-    if (!current) return;
+    
+    if (!current) {
+        releaseConcurrency();  // FIX: release even if record was cleaned up
+        return;
+    }
+    
+    if (current.processClosed) {
+        releaseConcurrency();  // Already handled by stall timeout
+        return;
+    }
+    
     current.processClosed = true;
     current.updatedAt = Date.now();
 
@@ -360,6 +398,7 @@ export async function startDownload(
       return;
     }
 
+    // FIX: Wrap entire success path in try/finally to ALWAYS release concurrency
     try {
       // If metadata and mp3, SomeDL was used inside a subdirectory. Move the file up.
       if (metadata && format === "mp3") {
@@ -373,7 +412,8 @@ export async function startDownload(
           }
           await rm(cwd, { recursive: true, force: true });
         } catch (err) {
-          // Ignore, errors will be caught by resolveFiles yielding 0 files
+          // If SomeDL produced no .mp3 files, this will throw and we handle it below
+          console.error(`[download:${token}] SomeDL cleanup error:`, err);
         }
       }
 
@@ -387,7 +427,6 @@ export async function startDownload(
         return;
       }
 
-      releaseConcurrency();
       current.files = files;
       current.status = "completed";
       current.progress = 100;
@@ -399,10 +438,13 @@ export async function startDownload(
       }
     } catch (error) {
       current.status = "error";
-      releaseConcurrency();
       current.error =
         error instanceof Error ? error.message : "Failed to prepare files.";
       current.expiresAt = Date.now();
+      console.error(`[download:${token}] post-process error:`, current.error);
+    } finally {
+      // FIX: Always release concurrency, no matter what happened above
+      releaseConcurrency();
     }
   });
 
