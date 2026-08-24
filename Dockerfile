@@ -24,6 +24,10 @@ RUN pnpm install --frozen-lockfile
 # Copy app
 COPY . .
 
+# Make entrypoint executable
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Create temp dir
 RUN mkdir -p temp
 
@@ -32,4 +36,5 @@ ENV PORT=3000
 
 EXPOSE 3000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["pnpm", "start"]

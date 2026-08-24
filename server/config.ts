@@ -70,12 +70,23 @@ export interface RateLimitConfig {
   windowMinutes: number;
 }
 
+export interface UpdaterConfig {
+  enabled: boolean;
+  intervalMs: number;
+  intervalHours: number;
+}
+
 export interface AppConfig {
   download: DownloadConfig;
   rateLimit: RateLimitConfig;
+  updater: UpdaterConfig;
   language: "en" | "es";
   trustProxy: boolean;
 }
+
+const updaterEnabled =
+  process.env.UPDATER_ENABLED !== "false" && process.env.UPDATER_ENABLED !== "0";
+const updaterIntervalHours = envInt("UPDATER_INTERVAL_HOURS", 24, { min: 1 });
 
 export const appConfig: AppConfig = Object.freeze({
   trustProxy,
@@ -94,6 +105,11 @@ export const appConfig: AppConfig = Object.freeze({
     maxRequests: maxDownloads,
     windowMs: rateWindowMinutes * 60 * 1000,
     windowMinutes: rateWindowMinutes,
+  },
+  updater: {
+    enabled: updaterEnabled,
+    intervalMs: updaterIntervalHours * 60 * 60 * 1000,
+    intervalHours: updaterIntervalHours,
   },
   language: lang as "en" | "es",
 });

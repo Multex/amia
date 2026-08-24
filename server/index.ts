@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import { startUpdater } from "./updater.js";
 import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -424,4 +425,10 @@ app.listen(PORT, () => {
   console.log(
     `Trust proxy: ${appConfig.trustProxy ? "enabled (1 hop)" : "disabled"}`,
   );
+
+  if (appConfig.updater.enabled) {
+    startUpdater();
+  } else {
+    console.log("[updater] Auto-updates disabled");
+  }
 });

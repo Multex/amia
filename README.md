@@ -59,6 +59,8 @@ Copy `.env.example` to `.env` and adjust:
 | `DOWNLOAD_RATE_LIMIT_MAX` | `5` | Max downloads per IP in time window |
 | `DOWNLOAD_RATE_LIMIT_WINDOW_MINUTES` | `60` | Rate limit time window in minutes |
 | `DOWNLOAD_MAX_CONCURRENT` | `3` | Max number of concurrent downloads allowed |
+| `UPDATER_ENABLED` | `true` | Enable auto-updates for yt-dlp and SomeDL |
+| `UPDATER_INTERVAL_HOURS` | `24` | How often to check for updates (hours) |
 
 See `.env.example` for detailed comments on each variable.
 
