@@ -51,13 +51,7 @@ async function runUpdate(): Promise<void> {
   // SomeDL update
   try {
     const oldVersion = await getVersion("somedl");
-    await exec("pip", [
-      "install",
-      "--upgrade",
-      "somedl",
-      "--break-system-packages",
-      "-q",
-    ]);
+    await exec("pip", ["install", "--upgrade", "somedl", "-q"]);
     const newVersion = await getVersion("somedl");
 
     if (oldVersion !== newVersion) {
