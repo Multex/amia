@@ -60,7 +60,6 @@ interface Translations {
   apiInvalidUrl: string;
   apiRateLimitExceeded: (maxRequests: number, window: string) => string;
   apiCouldNotStart: string;
-  apiMethodNotAllowed: string;
   apiNotFound: string;
   apiFileNotReady: string;
   apiServerBusy: string;
@@ -135,7 +134,6 @@ const translations: Record<"en" | "es", Translations> = {
     apiCouldNotStart: "Could not start download.",
     apiServerBusy:
       "Server is busy. Too many active downloads, please try again in a moment.",
-    apiMethodNotAllowed: "Method not allowed",
     apiNotFound: "Download not found or expired.",
     apiFileNotReady: "File not ready yet.",
     apiInternalError: "Internal server error.",
@@ -207,7 +205,6 @@ const translations: Record<"en" | "es", Translations> = {
     apiCouldNotStart: "No se pudo iniciar la descarga.",
     apiServerBusy:
       "El servidor está ocupado. Demasiadas descargas activas, por favor intenta de nuevo en un momento.",
-    apiMethodNotAllowed: "Método no permitido",
     apiNotFound: "Descarga no encontrada o expirada.",
     apiFileNotReady: "El archivo aún no está listo.",
     apiInternalError: "Error interno del servidor.",

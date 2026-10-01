@@ -8,8 +8,7 @@
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "build": "tsc --noEmit",
-    "start": "tsx server/index.ts",
-    "clean": "rm -rf dist .astro"
+    "start": "tsx server/index.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",

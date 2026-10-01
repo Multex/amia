@@ -8,31 +8,3 @@ export function getClientIp(request: Request): string {
   //                       raw TCP socket address, which cannot be spoofed.
   return request.ip ?? request.socket?.remoteAddress ?? "unknown";
 }
-
-export function json(
-  data: unknown,
-  init?: { status?: number; headers?: Record<string, string> },
-) {
-  const status = init?.status ?? 200;
-  const headers = init?.headers ?? {};
-
-  return {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      ...headers,
-    },
-    body: JSON.stringify(data),
-  };
-}
-
-export function methodNotAllowed(allowed: string[]) {
-  return {
-    status: 405,
-    headers: { Allow: allowed.join(", ") },
-    body: JSON.stringify({
-      error: "Method not allowed",
-      allowed,
-    }),
-  };
-}

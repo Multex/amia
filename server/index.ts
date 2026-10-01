@@ -16,7 +16,7 @@ import {
   getActiveDownloads,
 } from "./downloadManager.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { getClientIp, json } from "./utils.js";
+import { getClientIp } from "./utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
