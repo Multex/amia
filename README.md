@@ -61,6 +61,7 @@ Copy `.env.example` to `.env` and adjust:
 | `DOWNLOAD_MAX_CONCURRENT` | `3` | Max number of concurrent downloads allowed |
 | `UPDATER_ENABLED` | `true` | Enable auto-updates for yt-dlp and SomeDL |
 | `UPDATER_INTERVAL_HOURS` | `24` | How often to check for updates (hours) |
+| `TRUST_PROXY` | `false` | Trust `X-Forwarded-For` from one reverse proxy hop (enable only behind a proxy) |
 
 See `.env.example` for detailed comments on each variable.
 
@@ -75,8 +76,10 @@ See `.env.example` for detailed comments on each variable.
 Put behind Nginx, Caddy, or Cloudflare Tunnel:
 
 ```
-http://localhost:8085 -> https://your-domain.com
+http://localhost:3000 -> https://your-domain.com
 ```
+
+When running behind a proxy, set `TRUST_PROXY=true` so rate limiting sees each visitor's real IP instead of the proxy's.
 
 ## License
 
