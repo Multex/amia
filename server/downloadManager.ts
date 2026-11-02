@@ -185,6 +185,23 @@ async function removeOrphanedFiles() {
   }
 }
 
+// SomeDL has no size option, so check its folder while it runs.
+function watchFileSizes(cwd: string, onTooLarge: () => void) {
+  const maxBytes = appConfig.download.maxFileSizeMb * 1024 * 1024;
+  return setInterval(async () => {
+    try {
+      for (const file of await readdir(cwd)) {
+        if ((await stat(path.join(cwd, file))).size > maxBytes) {
+          onTooLarge();
+          return;
+        }
+      }
+    } catch {
+      /* folder is gone or a file was just renamed */
+    }
+  }, 2000).unref();
+}
+
 async function cleanupRecord(token: string) {
   const record = downloads.get(token);
   if (!record) return;
@@ -285,9 +302,19 @@ export async function startDownload(
     if (metadata && format === "mp3") {
       const cwd = path.join(TEMP_DIR, token);
       await mkdir(cwd, { recursive: true });
-      const res = runSomeDl({ url, cwd });
+      const res = runSomeDl({
+        url,
+        cwd,
+        downloadPlaylist,
+        maxPlaylistItems: appConfig.download.maxPlaylistItems,
+      });
       events = res.events;
       childProcess = res.child;
+      const sizeWatch = watchFileSizes(cwd, () => {
+        record.error = `File is over the ${appConfig.download.maxFileSizeMb} MB limit.`;
+        record.cancel?.();
+      });
+      events.once("close", () => clearInterval(sizeWatch));
     } else {
       const args = buildArgs(format, quality, token, downloadPlaylist);
       const res = runYtDlp({

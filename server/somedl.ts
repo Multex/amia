@@ -4,6 +4,8 @@ import { EventEmitter } from "node:events";
 interface SomeDlOptions {
   url: string;
   cwd: string;
+  downloadPlaylist: boolean;
+  maxPlaylistItems: number;
 }
 
 interface SomeDlResult {
@@ -14,14 +16,20 @@ interface SomeDlResult {
 /**
  * Spawns somedl with the provided configuration and emits progress updates.
  */
-export function runSomeDl({ url, cwd }: SomeDlOptions): SomeDlResult {
+export function runSomeDl({ url, cwd, downloadPlaylist, maxPlaylistItems }: SomeDlOptions): SomeDlResult {
   const events = new EventEmitter();
   
   // somedl mostly relies on its config file which we set up in the Dockerfile.
   // We use the -l flag to force it to download into the cwd (which is our isolated temp dir)
   // regardless of the user's global output directory configuration.
   // We also force format to mp3 since amia expects it.
-  const child = spawn("somedl", ["-l", "-f", "mp3", url], {
+  // --range also caps URLs that are only a playlist, which --get-song doesn't.
+  const child = spawn("somedl", [
+    "-l", "-f", "mp3", "--no-album",
+    "--range", `0:${downloadPlaylist ? maxPlaylistItems : 1}`,
+    downloadPlaylist ? "--get-playlist" : "--get-song",
+    "--", url,
+  ], {
     cwd, // Run in a unique directory to prevent naming collisions
     stdio: ["ignore", "pipe", "pipe"],
   });
