@@ -40,7 +40,7 @@ Access at `http://localhost:3000`
 
 ```bash
 git pull
-docker compose restart
+docker compose up -d --build
 ```
 
 ## Configuration
