@@ -15,6 +15,7 @@ import {
   createZipStream,
   getDownload,
   getActiveDownloads,
+  finishDownload,
 } from "./downloadManager.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { getClientIp } from "./utils.js";
@@ -411,6 +412,7 @@ app.get(
       if (error && error.code !== "ERR_STREAM_PREMATURE_CLOSE") {
         console.error(`[download:${token}] transfer failed:`, error.message);
       }
+      void finishDownload(token, !error);
     });
   }),
 );

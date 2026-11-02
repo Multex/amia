@@ -522,9 +522,15 @@ export function getDownloadStatus(token: string) {
   };
 }
 
-export async function handleDownloadClose(token: string) {
+// A dropped transfer doesn't count, so the file can be retried until it expires.
+export async function finishDownload(token: string, completed: boolean) {
   const record = downloads.get(token);
   if (!record) return;
+
+  if (!completed) {
+    record.downloadCount--;
+    return;
+  }
 
   const maxDownloads = appConfig.download.maxDownloadsPerFile;
 
@@ -558,7 +564,6 @@ export async function createZipStream(token: string) {
     const { size } = await stat(zipPath);
     // If exists, return stream
     const stream = createReadStream(zipPath);
-    stream.on("close", () => handleDownloadClose(token));
     return {
       stream,
       filename: `playlist-${token.slice(0, 8)}.zip`,
@@ -586,19 +591,19 @@ export async function createZipStream(token: string) {
       try {
         const size = (await stat(zipPath)).size;
         const readStream = createReadStream(zipPath);
-        readStream.on("close", () => handleDownloadClose(token));
         resolve({
           stream: readStream,
           filename: `playlist-${token.slice(0, 8)}.zip`,
           size,
         });
       } catch (err) {
-        reject(err);
+        fail(err as Error);
       }
     });
 
     // Remove the partial ZIP so a later request can't serve it as finished
     const fail = (err: Error) => {
+      record.downloadCount--;
       archive.abort();
       output.destroy();
       void rm(zipPath, { force: true }).catch(() => {});
@@ -641,8 +646,6 @@ export function createDownloadStream(token: string, fileIndex?: number) {
   ) {
     const file = record.files[fileIndex];
     const stream = createReadStream(file.filePath);
-    // Trigger cleanup on close if limit reached
-    stream.on("close", () => handleDownloadClose(token));
 
     return {
       stream,
@@ -654,7 +657,6 @@ export function createDownloadStream(token: string, fileIndex?: number) {
   // Default: Return first file (backward compatibility)
   const file = record.files[0];
   const stream = createReadStream(file.filePath);
-  stream.on("close", () => handleDownloadClose(token));
   return {
     stream,
     filename: file.downloadName,
