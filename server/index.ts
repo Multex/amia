@@ -223,8 +223,8 @@ async function isValidUrl(candidate: string): Promise<boolean> {
     if (isPrivateIp(parsed.hostname)) return false;
 
     // Second pass: resolve DNS and check every returned address.
-    // This closes the DNS-rebinding vector and makes redirect-chain attacks
-    // much harder — the hostname must resolve to a public IP right now.
+    // Only covers this lookup: yt-dlp and SomeDL resolve the hostname again
+    // and follow redirects on their own, so those can still reach private IPs.
     try {
       const addresses = await lookup(parsed.hostname, { all: true });
       for (const { address } of addresses) {
