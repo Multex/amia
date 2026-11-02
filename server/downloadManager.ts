@@ -353,7 +353,8 @@ export async function startDownload(
     if (current.totalFiles && current.currentFileIndex !== undefined) {
       const base = ((current.currentFileIndex - 1) / current.totalFiles) * 100;
       const added = value / current.totalFiles;
-      current.progress = Math.min(99, base + added);
+      // Max because video and audio each count from 0 within the same item
+      current.progress = Math.max(current.progress, Math.min(99, base + added));
     } else {
       current.progress = Math.max(current.progress, Math.min(100, value));
     }
@@ -371,7 +372,7 @@ export async function startDownload(
     }
 
     // Detect "Downloading video 1 of 5"
-    const playlistProgress = line.match(/Downloading video (\d+) of (\d+)/);
+    const playlistProgress = line.match(/Downloading (?:item|video) (\d+) of (\d+)/);
     if (playlistProgress) {
       current.currentFileIndex = parseInt(playlistProgress[1], 10);
       current.totalFiles = parseInt(playlistProgress[2], 10);
