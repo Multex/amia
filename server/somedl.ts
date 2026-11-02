@@ -32,6 +32,7 @@ export function runSomeDl({ url, cwd, downloadPlaylist, maxPlaylistItems }: Some
   ], {
     cwd, // Run in a unique directory to prevent naming collisions
     stdio: ["ignore", "pipe", "pipe"],
+    detached: true, // Own process group, so cancelling also stops its ffmpeg
   });
 
   // SomeDL might not output standard yt-dlp percentage logs, 

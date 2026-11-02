@@ -24,7 +24,8 @@ export function runYtDlp({ url, args, maxFileSizeMb = appConfig.download.maxFile
       : [];
   const ytArgs = [url, '--ignore-config', '--newline', '--no-warnings', ...sizeArgs, ...args];
   const child = spawn('yt-dlp', ytArgs, {
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true // Own process group, so cancelling also stops its ffmpeg
   });
 
   const parseProgress = (line: string) => {

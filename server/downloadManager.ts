@@ -234,6 +234,7 @@ async function cleanupRecord(token: string) {
 function cleanupExpired() {
   const now = Date.now();
   const STALL_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+  const MAX_JOB_MS = 60 * 60 * 1000; // 1 hour, even if it's still progressing
 
   for (const [token, record] of downloads.entries()) {
     if (
@@ -243,11 +244,12 @@ function cleanupExpired() {
       void cleanupRecord(token);
     } else if (
       record.status === "in_progress" &&
-      now - record.updatedAt > STALL_TIMEOUT_MS
+      (now - record.updatedAt > STALL_TIMEOUT_MS ||
+        now - record.createdAt > MAX_JOB_MS)
     ) {
-      console.warn(`[download:${token}] Stalled for too long, cancelling.`);
+      console.warn(`[download:${token}] Stalled or ran too long, cancelling.`);
       record.status = "error";
-      record.error = "Download timed out (stalled).";
+      record.error = "Download timed out.";
       if (record.cancel) record.cancel();
       record.processClosed = true;
       void cleanupRecord(token);
@@ -265,7 +267,6 @@ export async function startDownload(
   downloadPlaylist: boolean = false,
   metadata: boolean = false,
 ) {
-  await ensureTempDir();
   const token = randomUUID();
   const createdAt = Date.now();
   const record: DownloadRecord = {
@@ -283,6 +284,8 @@ export async function startDownload(
     isPlaylist: false,
   };
 
+  // Reserve the slot before the first await, so requests arriving together
+  // can't all pass the concurrency check.
   downloads.set(token, record);
   activeDownloads++;
 
@@ -298,6 +301,7 @@ export async function startDownload(
 
   let events;
   try {
+    await ensureTempDir();
     let childProcess;
     if (metadata && format === "mp3") {
       const cwd = path.join(TEMP_DIR, token);
@@ -328,12 +332,13 @@ export async function startDownload(
 
     record.cancel = () => {
       try {
-        childProcess.kill("SIGKILL");
+        if (childProcess.pid) process.kill(-childProcess.pid, "SIGKILL");
       } catch {
         // Already dead
       }
     };
   } catch (error) {
+    downloads.delete(token);
     releaseConcurrency();
     throw error;
   }
