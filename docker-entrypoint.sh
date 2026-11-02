@@ -9,6 +9,11 @@ if [ "$(id -u)" = "0" ]; then
   exec su-exec node "$0" "$@"
 fi
 
+if [ "$UPDATER_ENABLED" = "false" ] || [ "$UPDATER_ENABLED" = "0" ]; then
+  echo "[amia] Updates disabled. Starting server..."
+  exec "$@"
+fi
+
 echo "[amia] Updating yt-dlp..."
 yt-dlp -U 2>&1 || echo "[amia] yt-dlp update failed (non-fatal)"
 
