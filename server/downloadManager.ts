@@ -26,6 +26,7 @@ function sanitizeError(raw: string | undefined): string | undefined {
 const TEMP_DIR = appConfig.download.tempDir;
 const CLEANUP_INTERVAL_MS = appConfig.download.cleanupIntervalMs;
 const TTL_MS = appConfig.download.ttlMs;
+const JOB_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-|$)/;
 
 // Tracks how many yt-dlp processes are currently running.
 // Incremented when a download starts, decremented exactly once
@@ -171,6 +172,19 @@ async function resolveFiles(token: string): Promise<DownloadFile[]> {
   return files.sort((a, b) => a.filename.localeCompare(b.filename));
 }
 
+// Jobs only live in memory, so files from before a restart have no owner.
+// Only touches names starting with a UUID, in case the temp dir is shared.
+async function removeOrphanedFiles() {
+  try {
+    const entries = await readdir(TEMP_DIR);
+    for (const entry of entries.filter((name) => JOB_FILE.test(name))) {
+      await rm(path.join(TEMP_DIR, entry), { recursive: true, force: true });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 async function cleanupRecord(token: string) {
   const record = downloads.get(token);
   if (!record) return;
@@ -184,12 +198,14 @@ async function cleanupRecord(token: string) {
     }
   }
 
-  // Also try to delete any other files starting with token (zip, or partials)
+  // Also delete anything else from this job: zip, partials, SomeDL's folder
   try {
     const entries = await readdir(TEMP_DIR);
-    const related = entries.filter((f) => f.startsWith(`${token}-`));
+    const related = entries.filter(
+      (f) => f === token || f.startsWith(`${token}-`),
+    );
     for (const file of related) {
-      await rm(path.join(TEMP_DIR, file), { force: true });
+      await rm(path.join(TEMP_DIR, file), { recursive: true, force: true });
     }
   } catch {
     /* ignore */
@@ -223,6 +239,7 @@ function cleanupExpired() {
 }
 
 setInterval(cleanupExpired, CLEANUP_INTERVAL_MS).unref();
+void removeOrphanedFiles();
 
 export async function startDownload(
   url: string,
