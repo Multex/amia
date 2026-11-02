@@ -193,16 +193,18 @@ function isPrivateIp(hostname: string): boolean {
       return true;
   }
 
-  // Block IPv6 private/reserved ranges
+  // Block IPv6 private/reserved ranges (only real IPv6 addresses contain ":",
+  // otherwise domains like fc2.com would match the prefixes below)
   const h = host.toLowerCase();
   if (
-    h === "::" || // unspecified
-    h === "::1" || // loopback
-    h.startsWith("::ffff:") || // IPv4-mapped
-    h.startsWith("fc") || // unique local fc00::/7
-    h.startsWith("fd") || // unique local fd00::/8
-    h.startsWith("fe80") || // link-local fe80::/10
-    h.startsWith("2001:db8") // documentation
+    h.includes(":") &&
+    (h === "::" || // unspecified
+      h === "::1" || // loopback
+      h.startsWith("::ffff:") || // IPv4-mapped
+      h.startsWith("fc") || // unique local fc00::/7
+      h.startsWith("fd") || // unique local fd00::/8
+      h.startsWith("fe80") || // link-local fe80::/10
+      h.startsWith("2001:db8")) // documentation
   )
     return true;
 
