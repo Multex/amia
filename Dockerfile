@@ -43,6 +43,10 @@ ENV PORT=3000
 
 EXPOSE 3000
 
+# The start period leaves time for the downloader updates that run on startup
+HEALTHCHECK --interval=30s --timeout=5s --start-period=2m \
+  CMD curl -fsS "http://127.0.0.1:${PORT}/api/health" > /dev/null || exit 1
+
 ENTRYPOINT ["docker-entrypoint.sh"]
 # Run tsx directly: pnpm (via corepack) would try to re-download itself for the node user
 CMD ["node_modules/.bin/tsx", "server/index.ts"]
