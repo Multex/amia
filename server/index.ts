@@ -263,6 +263,12 @@ app.post(
       return;
     }
 
+    // Checked before the rate limit, so a busy server doesn't use up attempts
+    if (getActiveDownloads() >= appConfig.download.maxConcurrentDownloads) {
+      res.status(429).json({ error: t.apiServerBusy });
+      return;
+    }
+
     const ip = getClientIp(req);
     const allowed = checkRateLimit(ip);
 
@@ -273,11 +279,6 @@ app.post(
           formatWindow(appConfig.rateLimit.windowMinutes),
         ),
       });
-      return;
-    }
-
-    if (getActiveDownloads() >= appConfig.download.maxConcurrentDownloads) {
-      res.status(429).json({ error: t.apiServerBusy });
       return;
     }
 
@@ -363,6 +364,12 @@ app.get(
 
     if (record.status !== "completed") {
       res.status(409).json({ error: t.apiFileNotReady });
+      return;
+    }
+
+    // Express also routes HEAD here, and it shouldn't use up a download
+    if (req.method === "HEAD") {
+      res.status(200).end();
       return;
     }
 
