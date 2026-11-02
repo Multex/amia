@@ -4,6 +4,7 @@ import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookup } from "node:dns/promises";
+import { pipeline } from "node:stream";
 import { z } from "zod";
 import { appConfig } from "./config.js";
 import { getTranslations } from "./i18n.js";
@@ -405,7 +406,12 @@ app.get(
       res.set("Content-Length", download.size.toString());
     }
 
-    (download.stream as any).pipe(res);
+    // pipeline closes the file if the client disconnects and catches read errors
+    pipeline(download.stream, res, (error) => {
+      if (error && error.code !== "ERR_STREAM_PREMATURE_CLOSE") {
+        console.error(`[download:${token}] transfer failed:`, error.message);
+      }
+    });
   }),
 );
 

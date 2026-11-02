@@ -506,14 +506,14 @@ export async function createZipStream(token: string) {
 
   // Check if zip already exists
   try {
-    await stat(zipPath);
+    const { size } = await stat(zipPath);
     // If exists, return stream
     const stream = createReadStream(zipPath);
     stream.on("close", () => handleDownloadClose(token));
     return {
       stream,
       filename: `playlist-${token.slice(0, 8)}.zip`,
-      size: (await stat(zipPath)).size,
+      size,
     };
   } catch {
     // Zip doesn't exist, create it
@@ -548,7 +548,16 @@ export async function createZipStream(token: string) {
       }
     });
 
-    archive.on("error", (err) => reject(err));
+    // Remove the partial ZIP so a later request can't serve it as finished
+    const fail = (err: Error) => {
+      archive.abort();
+      output.destroy();
+      void rm(zipPath, { force: true }).catch(() => {});
+      reject(err);
+    };
+
+    output.on("error", fail);
+    archive.on("error", fail);
 
     archive.pipe(output);
 
@@ -556,7 +565,7 @@ export async function createZipStream(token: string) {
       archive.file(file.filePath, { name: file.downloadName });
     }
 
-    archive.finalize();
+    archive.finalize().catch(fail);
   });
 }
 
