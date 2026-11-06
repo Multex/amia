@@ -306,6 +306,10 @@ progress:indeterminate::-moz-progress-bar {
   }
 }
 
+.download-btn[hidden] {
+  display: none;
+}
+
 .download-btn {
   display: flex;
   align-items: center;
