@@ -35,18 +35,11 @@ export function runSomeDl({ url, cwd, downloadPlaylist, maxPlaylistItems }: Some
     detached: true, // Own process group, so cancelling also stops its ffmpeg
   });
 
-  // SomeDL might not output standard yt-dlp percentage logs, 
-  // so we just pass along whatever it prints, or simulate progress if needed.
-  // However, we can try to catch some percentage if it uses yt-dlp under the hood.
+  // SomeDL prints no percentages, only a line per finished song ("Downloaded successfully:  2/5 ...")
   const parseProgress = (line: string) => {
-    // SomeDL uses rich logging (rich library) which might contain percentage 
-    // or we might catch yt-dlp's output if it's passed through.
-    const match = line.match(/(\d+(?:\.\d+)?)%/);
+    const match = line.match(/Downloaded successfully:\s+(\d+)\/(\d+)/);
     if (!match) return;
-    const progress = Number.parseFloat(match[1]);
-    if (!Number.isNaN(progress)) {
-      events.emit("progress", progress);
-    }
+    events.emit("progress", (Number(match[1]) / Number(match[2])) * 100);
   };
 
   child.stdout.setEncoding("utf8");

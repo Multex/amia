@@ -29,7 +29,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         quality480p: "480p",
         qualityAudio: "Audio (best quality)",
         statusInitiating: "Starting download...",
+        statusPreparing: "Getting video info...",
         statusDownloading: "Downloading...",
+        statusDownloadingItem: "Downloading {current} of {total}...",
+        statusFinishing: "Joining video and audio...",
+        statusConverting: "Converting to {format}...",
+        statusSongInfo: "Downloading and adding song info...",
         statusReady: "File ready!",
         downloadLinkText: "Download file",
         downloadZip: "Download All (ZIP)",
@@ -153,6 +158,7 @@ function initializeApp(config) {
 
   let pollTimer = null;
   let activeToken = null;
+  let activeJob = null;
 
   function showStatusCard() {
     statusCard.classList.add("active");
@@ -173,6 +179,55 @@ function initializeApp(config) {
     document.getElementById("playlist-container")?.classList.remove("active");
   }
 
+  function usesSomeDl(job) {
+    return job.format === "mp3" && job.metadata;
+  }
+
+  // No value makes the bar move without a number, so it doesn't look stuck at 0%
+  function showWorking(message) {
+    statusMessage.textContent = message;
+    progressBar.removeAttribute("value");
+    progressText.textContent = "";
+  }
+
+  function showProgress(data, progress) {
+    const audio = activeJob.format === "mp3" || activeJob.format === "wav";
+
+    // SomeDL only reports when each song is finished
+    if (usesSomeDl(activeJob)) {
+      if (progress > 0) {
+        statusMessage.textContent = t.statusSongInfo;
+        progressBar.value = progress;
+        progressText.textContent = `${progress}%`;
+      } else {
+        showWorking(t.statusSongInfo);
+      }
+      return;
+    }
+
+    if (data.stage === "processing") {
+      showWorking(
+        audio
+          ? t.statusConverting.replace("{format}", activeJob.format.toUpperCase())
+          : t.statusFinishing,
+      );
+      return;
+    }
+
+    if (data.stage === "downloading") {
+      statusMessage.textContent = data.totalItems
+        ? t.statusDownloadingItem
+            .replace("{current}", data.currentItem)
+            .replace("{total}", data.totalItems)
+        : t.statusDownloading;
+      progressBar.value = progress;
+      progressText.textContent = `${progress}%`;
+      return;
+    }
+
+    showWorking(t.statusPreparing);
+  }
+
   async function pollStatus(token) {
     try {
       const response = await fetch(`/api/status/${token}`);
@@ -180,8 +235,14 @@ function initializeApp(config) {
         throw new Error(t.errorStateUnavailable);
       }
       const data = await response.json();
-      progressBar.value = data.progress ?? 0;
-      progressText.textContent = `${data.progress ?? 0}%`;
+      const progress = data.progress ?? 0;
+
+      if (data.status === "in_progress") {
+        showProgress(data, progress);
+      } else {
+        progressBar.value = progress;
+        progressText.textContent = `${progress}%`;
+      }
 
       if (data.status === "completed") {
         statusMessage.textContent = t.statusReady;
@@ -298,11 +359,11 @@ function initializeApp(config) {
       }
 
       activeToken = data.token;
-      statusMessage.textContent = t.statusDownloading;
+      activeJob = payload;
       statusMessage.className = "";
-      progressText.textContent = "0%";
+      showWorking(usesSomeDl(payload) ? t.statusSongInfo : t.statusPreparing);
       pollStatus(activeToken);
-      pollTimer = setInterval(() => pollStatus(activeToken), 3000);
+      pollTimer = setInterval(() => pollStatus(activeToken), 1000);
     } catch (error) {
       statusMessage.textContent =
         error instanceof Error ? error.message : t.errorCouldNotStart;

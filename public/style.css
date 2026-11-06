@@ -277,6 +277,35 @@ progress::-moz-progress-bar {
   border-radius: 99px;
 }
 
+/* Sliding band while there's no percentage yet, so visitors can see it's still working */
+progress:indeterminate {
+  background:
+    linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)) no-repeat,
+    rgba(255, 255, 255, 0.05);
+  background-size: 35% 100%, auto;
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress:indeterminate::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes progress-slide {
+  from { background-position: -50% 0, 0 0; }
+  to { background-position: 150% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  progress:indeterminate {
+    animation: none;
+    background-position: 50% 0, 0 0;
+  }
+}
+
 .download-btn {
   display: flex;
   align-items: center;

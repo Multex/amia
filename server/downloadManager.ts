@@ -54,6 +54,8 @@ interface DownloadRecord {
   format: FormatOption;
   quality: QualityOption;
   status: DownloadStatus;
+  // What the page tells the visitor while status is in_progress
+  stage: "preparing" | "downloading" | "processing";
   progress: number;
   createdAt: number;
   updatedAt: number;
@@ -298,6 +300,7 @@ export async function startDownload(
     format,
     quality,
     status: "in_progress",
+    stage: "preparing",
     progress: 0,
     createdAt,
     updatedAt: createdAt,
@@ -382,6 +385,7 @@ export async function startDownload(
     } else {
       current.progress = Math.max(current.progress, Math.min(100, value));
     }
+    current.stage = "downloading";
     current.updatedAt = Date.now();
   });
 
@@ -389,6 +393,11 @@ export async function startDownload(
     // console.log(`[Debug] yt-dlp output: ${line}`); // Uncomment for verbose logs
     const current = downloads.get(token);
     if (!current) return;
+
+    // ffmpeg steps after the download: merging video and audio, converting audio, fixing streams
+    if (/^\[(Merger|ExtractAudio|VideoConvertor|VideoRemuxer|Fixup\w*)\]/.test(line)) {
+      current.stage = "processing";
+    }
 
     // Detect playlist
     if (line.includes("Downloading playlist")) {
@@ -542,6 +551,9 @@ export function getDownloadStatus(token: string) {
   return {
     token: record.token,
     status: record.status,
+    stage: record.stage,
+    currentItem: record.currentFileIndex,
+    totalItems: record.totalFiles,
     progress: Math.round(record.progress),
     error: sanitizeError(record.error),
     expiresAt: record.expiresAt,

@@ -26,7 +26,12 @@ interface Translations {
 
   // Status messages
   statusInitiating: string;
+  statusPreparing: string;
   statusDownloading: string;
+  statusDownloadingItem: string;
+  statusFinishing: string;
+  statusConverting: string;
+  statusSongInfo: string;
   statusReady: string;
   statusProgress: string;
   downloadLinkText: string;
@@ -95,7 +100,12 @@ const translations: Record<"en" | "es", Translations> = {
 
     // Status messages
     statusInitiating: "Starting download...",
+    statusPreparing: "Getting video info...",
     statusDownloading: "Downloading...",
+    statusDownloadingItem: "Downloading {current} of {total}...",
+    statusFinishing: "Joining video and audio...",
+    statusConverting: "Converting to {format}...",
+    statusSongInfo: "Downloading and adding song info...",
     statusReady: "File ready!",
     statusProgress: "Progress",
     downloadLinkText: "Download file",
@@ -166,7 +176,12 @@ const translations: Record<"en" | "es", Translations> = {
 
     // Status messages
     statusInitiating: "Iniciando descarga...",
+    statusPreparing: "Obteniendo información del video...",
     statusDownloading: "Descargando...",
+    statusDownloadingItem: "Descargando {current} de {total}...",
+    statusFinishing: "Uniendo video y audio...",
+    statusConverting: "Convirtiendo a {format}...",
+    statusSongInfo: "Descargando y añadiendo información de la canción...",
     statusReady: "¡Archivo listo!",
     statusProgress: "Progreso",
     downloadLinkText: "Descargar archivo",
