@@ -61,6 +61,7 @@ interface DownloadRecord {
   downloadCount: number;
   files: DownloadFile[];
   isPlaylist: boolean;
+  metadata: boolean;
   totalFiles?: number;
   currentFileIndex?: number;
   error?: string;
@@ -69,6 +70,28 @@ interface DownloadRecord {
 }
 
 const downloads = new Map<string, DownloadRecord>();
+
+function formatDuration(ms: number) {
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${s % 60}s`;
+}
+
+// Keeps visitors anonymous: never log the link, title, file name, IP or token.
+function logResult(record: DownloadRecord, failure?: string) {
+  const kind: string[] = [record.format, record.quality];
+  if (record.metadata) kind.push("metadata");
+  if (record.isPlaylist) kind.push("playlist");
+  const took = formatDuration(Date.now() - record.createdAt);
+  if (failure) {
+    console.log(`[download] failed ${kind.join(" ")} after ${took}: ${failure}`);
+    return;
+  }
+  const count = record.files.length;
+  const mb = record.files.reduce((sum, f) => sum + f.fileSize, 0) / 1024 / 1024;
+  console.log(
+    `[download] done ${kind.join(" ")} ${count} ${count === 1 ? "file" : "files"} ${mb.toFixed(mb < 10 ? 1 : 0)} MB ${took}`,
+  );
+}
 
 async function ensureTempDir() {
   await mkdir(TEMP_DIR, { recursive: true });
@@ -247,9 +270,9 @@ function cleanupExpired() {
       (now - record.updatedAt > STALL_TIMEOUT_MS ||
         now - record.createdAt > MAX_JOB_MS)
     ) {
-      console.warn(`[download:${token}] Stalled or ran too long, cancelling.`);
       record.status = "error";
       record.error = "Download timed out.";
+      logResult(record, record.error);
       if (record.cancel) record.cancel();
       record.processClosed = true;
       void cleanupRecord(token);
@@ -282,6 +305,7 @@ export async function startDownload(
     downloadCount: 0,
     files: [],
     isPlaylist: false,
+    metadata,
   };
 
   // Reserve the slot before the first await, so requests arriving together
@@ -415,8 +439,10 @@ export async function startDownload(
     current.error = error.message;
     current.updatedAt = Date.now();
     current.expiresAt = Date.now();
+    // "close" can follow; this stops it logging the same job twice
+    current.processClosed = true;
     releaseConcurrency();
-    console.error(`[download:${token}] process error:`, error.message);
+    logResult(current, `couldn't run the downloader (${error.message})`);
   });
 
   events.on("close", async (code: number | null) => {
@@ -441,9 +467,10 @@ export async function startDownload(
         current.error ?? `yt-dlp exited with code ${code ?? "unknown"}`;
       current.expiresAt = Date.now();
       releaseConcurrency();
-      console.error(
-        `[download:${token}] failed (code ${code}):`,
-        current.error,
+      // Lines captured from yt-dlp contain "error" and can include video IDs, so only our own messages get logged
+      logResult(
+        current,
+        /error/i.test(current.error) ? `exit code ${code ?? "unknown"}` : current.error,
       );
       return;
     }
@@ -463,7 +490,7 @@ export async function startDownload(
           await rm(cwd, { recursive: true, force: true });
         } catch (err) {
           // If SomeDL produced no .mp3 files, this will throw and we handle it below
-          console.error(`[download:${token}] SomeDL cleanup error:`, err);
+          console.error("[download] SomeDL cleanup error:", (err as NodeJS.ErrnoException).code);
         }
       }
 
@@ -474,6 +501,7 @@ export async function startDownload(
         current.status = "error";
         current.error = "No files were downloaded.";
         current.expiresAt = Date.now();
+        logResult(current, current.error);
         return;
       }
 
@@ -486,12 +514,14 @@ export async function startDownload(
       if (files.length > 1) {
         current.isPlaylist = true;
       }
+      logResult(current);
     } catch (error) {
       current.status = "error";
       current.error =
         error instanceof Error ? error.message : "Failed to prepare files.";
       current.expiresAt = Date.now();
-      console.error(`[download:${token}] post-process error:`, current.error);
+      // The error message can hold a file path with the video title
+      logResult(current, "couldn't prepare the files");
     } finally {
       // FIX: Always release concurrency, no matter what happened above
       releaseConcurrency();

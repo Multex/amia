@@ -13,6 +13,11 @@ services:
       - ./package.json:/app/package.json
     environment:
       NODE_ENV: production
+    # Keep about 10 MB of logs, older lines are deleted
+    logging:
+      options:
+        max-size: "5m"
+        max-file: "2"
     dns:
       - 8.8.8.8
       - 1.1.1.1

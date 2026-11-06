@@ -265,6 +265,7 @@ app.post(
 
     // Checked before the rate limit, so a busy server doesn't use up attempts
     if (getActiveDownloads() >= appConfig.download.maxConcurrentDownloads) {
+      console.log(`[download] busy (all ${appConfig.download.maxConcurrentDownloads} slots in use)`);
       res.status(429).json({ error: t.apiServerBusy });
       return;
     }
@@ -273,6 +274,7 @@ app.post(
     const allowed = checkRateLimit(ip);
 
     if (!allowed) {
+      console.log("[download] rate limited");
       res.status(429).json({
         error: t.apiRateLimitExceeded(
           appConfig.rateLimit.maxRequests,
@@ -355,7 +357,6 @@ app.get(
     }
 
     if (record.status === "error") {
-      console.error(`[download:${token}] serving error state:`, record.error);
       res.status(410).json({
         error: t.apiInternalError,
       });
@@ -417,7 +418,7 @@ app.get(
     // pipeline closes the file if the client disconnects and catches read errors
     pipeline(download.stream, res, (error) => {
       if (error && error.code !== "ERR_STREAM_PREMATURE_CLOSE") {
-        console.error(`[download:${token}] transfer failed:`, error.message);
+        console.error("[download] transfer failed:", error.code ?? "unknown");
       }
       void finishDownload(token, !error);
     });
