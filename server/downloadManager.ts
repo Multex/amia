@@ -165,6 +165,16 @@ function buildArgs(
     ].join("/");
     args.push("-f", formatSelector);
     args.push("--merge-output-format", container);
+
+    if (format === "mp4") {
+      // MP4 is the "plays everywhere" option: H.264 video and plain AAC audio.
+      // TikTok sends HE-AAC v2, which WhatsApp plays silently, so the audio is re-encoded.
+      args.push(
+        "-S", "vcodec:h264,acodec:aac",
+        "--use-postprocessor", "FFmpegCopyStream",
+        "--ppa", "CopyStream:-c:v copy -c:a aac -b:a 160k",
+      );
+    }
   }
 
   return args;
@@ -395,7 +405,7 @@ export async function startDownload(
     if (!current) return;
 
     // ffmpeg steps after the download: merging video and audio, converting audio, fixing streams
-    if (/^\[(Merger|ExtractAudio|VideoConvertor|VideoRemuxer|Fixup\w*)\]/.test(line)) {
+    if (/^\[(Merger|ExtractAudio|VideoConvertor|VideoRemuxer|CopyStream|Fixup\w*)\]/.test(line)) {
       current.stage = "processing";
     }
 
